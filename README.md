@@ -1,0 +1,162 @@
+# pack-google
+
+Google Workspace (Sheets, Drive, Docs) via vendored OpenAPI 3 specs —
+gives the LLM full request **and** response types for the
+batchUpdate-heavy parts of the surface where flat tool descriptions
+never get there.
+
+> Pack authoring reference: see
+> [`docs/pack-format.md`](https://github.com/embabel/assistant/blob/main/docs/pack-format.md)
+> in the assistant repo for the full pack format spec — vendored
+> OpenAPI specs, OAuth2, identity introspection, admin OAuth app
+> registry, and per-workspace overrides are all documented there.
+
+## Why
+
+Google's REST APIs are described by **Discovery Documents**, not
+OpenAPI. The community-maintained APIs Guru repository converts the
+discovery docs to OpenAPI 3 and publishes them at stable URLs. Those
+JSON files are vendored into `apis/` so the pack is self-contained and
+doesn't fetch over the network at startup.
+
+The vendored specs have leading namespace prefixes stripped from
+operationIds (`sheets.spreadsheets.values.batchUpdate` →
+`spreadsheets.values.batchUpdate`) so gateway method names don't
+double-prefix once they pass through `apis.yml`'s `name:` field.
+
+## Namespace
+
+Three independent gateways:
+
+- `gateway.sheets.<method>(args)`
+- `gateway.drive.<method>(args)`
+- `gateway.docs.<method>(args)`
+
+Methods are the operationId after sanitization (dots → underscores).
+E.g.:
+
+- `gateway.sheets.spreadsheets_values_batchUpdate({ spreadsheetId, body: { ... } })`
+- `gateway.drive.files_list({ q: "name contains 'invoice'" })`
+- `gateway.docs.documents_batchUpdate({ documentId, body: { requests: [...] } })`
+
+If a call returns `gateway.X.foo is not a workspace tool`, the error
+lists every valid method — pick from it. Never re-send the same call.
+
+See `prompts/examples.md` for usage patterns and the three bundled
+skills (`google-sheets-workflows`, `google-drive-workflows`,
+`google-docs-workflows`) for the deeper request grammar.
+
+## Auth — OAuth2
+
+End users **never** paste API tokens, never know about client IDs, and
+never set environment variables. They click **Authorize** in
+Settings → Connected Services. That's it.
+
+This works because the assistant deployment has ONE registered Google
+Cloud OAuth client (provider id: `google-workspace`). Every end user
+connects their own Google account against that single app — same as
+how "Sign in with Google" works on every website.
+
+### Provider id: `google-workspace` (NOT `google`)
+
+The assistant's in-code Gmail/Calendar integration currently uses the
+legacy provider id `google`. Sharing the slot would let the two scope
+sets (Gmail+Calendar read-only vs. Sheets+Drive+Docs full) clobber
+each other in the CredentialStore. So this pack registers under
+`google-workspace`. Once the in-code Gmail/Calendar services migrate
+to read from this slot, the legacy `google` provider can be retired
+(one-time re-consent for existing users).
+
+### For end users
+
+1. Open **Settings → Connected Services**.
+2. Click **Authorize** on the `google-workspace` row.
+3. Consent on Google's page. Done — `gateway.{sheets,drive,docs}.*`
+   are all live in chat (one consent screen covers all three).
+
+If the row shows **"Not configured"**, the deployment operator hasn't
+registered the Google Cloud app yet — show them the next section.
+
+### For installation admins (one-time setup)
+
+Done once per installation. Every workspace in the installation
+inherits — end users just click Authorize.
+
+1. **Create a Google Cloud OAuth 2.0 Client ID** at
+   `console.cloud.google.com/apis/credentials`. Application type:
+   **Web application**.
+2. **Enable the APIs** the pack uses, on the same project:
+   - Google Sheets API
+   - Google Drive API
+   - Google Docs API
+3. **Configure the OAuth consent screen** with at minimum these
+   scopes (the same scopes are declared in `apis/apis.yml`):
+   ```
+   openid email profile
+   https://www.googleapis.com/auth/spreadsheets
+   https://www.googleapis.com/auth/drive
+   https://www.googleapis.com/auth/documents
+   ```
+   For an internal-only Workspace deployment, set User Type to
+   **Internal**. For external users, the app needs Google's
+   verification (the `drive` and `documents` scopes are sensitive /
+   restricted).
+4. **Authorized redirect URI** — set to your assistant's public
+   callback URL:
+   `https://your-host/api/v1/auth/oauth2/callback`
+   (or `http://localhost:8042/api/v1/auth/oauth2/callback` for local
+   dev).
+5. **Copy** the client ID and client secret.
+6. **Add them to** `{workspaceBase}/admin/oauth-apps.yml` (the same
+   admin directory that holds `pack-sources.yml`, `themes/`, `hints/`,
+   etc.):
+
+   ```yaml
+   apps:
+     google-workspace:
+       client-id: 1234567890-abcdef.apps.googleusercontent.com
+       client-secret: GOCSPX-...
+   ```
+
+   Hot-reloaded — no restart needed. Every workspace in the
+   installation will see "Authorize" appear in Settings.
+
+A specific workspace can opt out of the installation default and
+point at its own Google Cloud app by writing the same shape to
+`<workspace>/config/oauth-apps.yml` — useful if one team needs a
+different brand on the consent screen.
+
+Token refresh is automatic. End users can disconnect from the same
+Settings panel any time.
+
+### Pare back the scopes for read-only deployments
+
+Drop `documents` and replace `drive` with `drive.readonly` in
+`apis/apis.yml`'s `scopes:` block (same in all three entries) and in
+the Google Cloud OAuth consent screen. Removes write methods'
+authorization without changing the pack code.
+
+## What's covered
+
+| Service | Operations exposed | What it lets you do |
+|---|---|---|
+| `sheets` | `spreadsheets.create / get / batchUpdate`, `values.get / batchGet / update / batchUpdate / append / clear` | Create spreadsheets, read/write ranges, append rows, modify structure (sheets, formatting, formulas) |
+| `drive` | `files.list / get / create / update / copy / export`, `permissions.list / create` | Find files by query, read/write contents, export Google-native to PDF/DOCX/XLSX, share |
+| `docs` | `documents.create / get / batchUpdate` | Create docs, read structured content, batch-edit (insert/replace text, formatting, tables) |
+
+Total: ~20 operations. Comments, revisions, change-watching, shared
+drives, and developer metadata are out of scope for v1 — add them
+when a concrete workflow needs them.
+
+## What's NOT in this pack
+
+- **Gmail / Calendar** — handled in-code by the assistant repo's
+  `integration/google/` services (signal contributors depend on the
+  structured shapes). Will eventually migrate to the
+  `google-workspace` provider but stays in-code for now.
+- **Drive `comments`, `revisions`, `changes`, `drives` (shared
+  drives)** — out of scope for v1.
+- **Sheets `developerMetadata`, `getByDataFilter`** — niche,
+  out of scope for v1.
+- **Slides, Forms, Apps Script, Admin SDK, Workspace Marketplace** —
+  separate APIs, separate packs.

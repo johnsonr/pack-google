@@ -1,0 +1,117 @@
+# Google Workspace — Sheets v4, Drive v3, Docs v1.
+#
+# Specs are vendored OpenAPI 3 conversions of Google's Discovery
+# Documents, sourced from APIs Guru. Vendored (not URL-fetched) because:
+# (a) Google API surface is stable enough that drift is rare, and
+# (b) network fetch at startup is a footgun.
+#
+# Auth: OAuth2 against a Google Cloud OAuth client registered ONCE per
+# assistant deployment under the `google-workspace` provider id.
+# Client credentials live in the deployment's `application.yml` under
+# `assistant.oauth.apps.google-workspace.*` — NEVER in this file
+# (which is checked into the public pack repo) and NEVER in any end
+# user's workspace. End users just click "Authorize" in
+# Settings → Connected Services.
+#
+# All three entries declare the same `oauth2:` block (auth-url,
+# token-url, scopes, identity), so the assistant treats them as one
+# OAuth flow against `google-workspace` — one consent screen, one
+# token slot in the CredentialStore (`google-workspace_OAUTH2#${sub}`),
+# all three services authorized in a single click.
+#
+# IMPORTANT: provider id is `google-workspace`, NOT `google`. The
+# in-code Gmail/Calendar integration in the assistant repo currently
+# uses the legacy provider id `google`; sharing the slot would let
+# the two scope sets clobber each other. Once the in-code services
+# migrate to read from this slot, the legacy `google` provider can be
+# retired (one-time re-consent for existing users).
+#
+# Curation strategy (operation-ids): keep the surface small. Drive in
+# particular has 48 operations; we expose the dozen that cover ~95%
+# of code-mode use (search/list/get/create/update/copy/export + basic
+# permissions). Comments, revisions, watch/changes, drives (shared
+# drives), team drives are deliberately omitted from v1 — add when a
+# concrete need arises.
+
+- url: sheets-v4.json
+  name: sheets
+  type: openapi
+  auth: oauth2
+  oauth2:
+    provider: google-workspace
+    auth-url: https://accounts.google.com/o/oauth2/v2/auth
+    token-url: https://oauth2.googleapis.com/token
+    scopes: >-
+      openid email profile
+      https://www.googleapis.com/auth/spreadsheets
+      https://www.googleapis.com/auth/drive
+      https://www.googleapis.com/auth/documents
+    identity:
+      url: https://openidconnect.googleapis.com/v1/userinfo
+      method: GET
+      auth: bearer
+      account-id-field: sub
+      display-name-field: email
+  operation-ids:
+    - spreadsheets.create
+    - spreadsheets.get
+    - spreadsheets.batchUpdate
+    - spreadsheets.values.get
+    - spreadsheets.values.batchGet
+    - spreadsheets.values.update
+    - spreadsheets.values.append
+    - spreadsheets.values.batchUpdate
+    - spreadsheets.values.clear
+
+- url: drive-v3.json
+  name: drive
+  type: openapi
+  auth: oauth2
+  oauth2:
+    provider: google-workspace
+    auth-url: https://accounts.google.com/o/oauth2/v2/auth
+    token-url: https://oauth2.googleapis.com/token
+    scopes: >-
+      openid email profile
+      https://www.googleapis.com/auth/spreadsheets
+      https://www.googleapis.com/auth/drive
+      https://www.googleapis.com/auth/documents
+    identity:
+      url: https://openidconnect.googleapis.com/v1/userinfo
+      method: GET
+      auth: bearer
+      account-id-field: sub
+      display-name-field: email
+  operation-ids:
+    - files.list
+    - files.get
+    - files.create
+    - files.update
+    - files.copy
+    - files.export
+    - permissions.list
+    - permissions.create
+
+- url: docs-v1.json
+  name: docs
+  type: openapi
+  auth: oauth2
+  oauth2:
+    provider: google-workspace
+    auth-url: https://accounts.google.com/o/oauth2/v2/auth
+    token-url: https://oauth2.googleapis.com/token
+    scopes: >-
+      openid email profile
+      https://www.googleapis.com/auth/spreadsheets
+      https://www.googleapis.com/auth/drive
+      https://www.googleapis.com/auth/documents
+    identity:
+      url: https://openidconnect.googleapis.com/v1/userinfo
+      method: GET
+      auth: bearer
+      account-id-field: sub
+      display-name-field: email
+  operation-ids:
+    - documents.create
+    - documents.get
+    - documents.batchUpdate
