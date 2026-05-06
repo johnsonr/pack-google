@@ -82,44 +82,60 @@ registered the Google Cloud app yet — show them the next section.
 Done once per installation. Every workspace in the installation
 inherits — end users just click Authorize.
 
-1. **Create a Google Cloud OAuth 2.0 Client ID** at
-   `console.cloud.google.com/apis/credentials`. Application type:
-   **Web application**.
-2. **Enable the APIs** the pack uses, on the same project:
+**You can reuse the same Google Cloud OAuth client your assistant
+already uses for the in-code Gmail/Calendar integration** (the
+client-id/secret under `assistant.google.*`). The `google-workspace`
+provider id is *local* to the assistant — Google doesn't see it. One
+OAuth client can back any number of provider entries on the assistant
+side, with any scope sets. So the steps below assume reuse; if you
+don't yet have a Google Cloud OAuth client, create one first
+(`console.cloud.google.com/apis/credentials` → **OAuth 2.0 Client ID**
+→ Application type **Web application**).
+
+1. **Enable the APIs** on the same Google Cloud project (the existing
+   project probably only has Gmail and Calendar enabled):
    - Google Sheets API
    - Google Drive API
    - Google Docs API
-3. **Configure the OAuth consent screen** with at minimum these
-   scopes (the same scopes are declared in `apis/apis.yml`):
+2. **Extend the OAuth consent screen** to declare these scopes (in
+   addition to whatever's already there for Gmail/Calendar — same
+   scopes are declared in `apis/apis.yml`):
    ```
    openid email profile
    https://www.googleapis.com/auth/spreadsheets
    https://www.googleapis.com/auth/drive
    https://www.googleapis.com/auth/documents
    ```
-   For an internal-only Workspace deployment, set User Type to
-   **Internal**. For external users, the app needs Google's
-   verification (the `drive` and `documents` scopes are sensitive /
-   restricted).
-4. **Authorized redirect URI** — set to your assistant's public
-   callback URL:
+   For an Internal-only Workspace deployment, this is painless. For
+   External users, adding `drive` and `documents` (sensitive /
+   restricted scopes) triggers Google's verification process — plan
+   for the review timeline.
+3. **Authorized redirect URI** — should already be set to your
+   assistant's public callback URL from the existing Gmail/Calendar
+   setup; no change needed:
    `https://your-host/api/v1/auth/oauth2/callback`
    (or `http://localhost:8042/api/v1/auth/oauth2/callback` for local
    dev).
-5. **Copy** the client ID and client secret.
-6. **Add them to** `{workspaceBase}/admin/oauth-apps.yml` (the same
-   admin directory that holds `pack-sources.yml`, `themes/`, `hints/`,
-   etc.):
+4. **Add a second `oauth-apps.yml` entry** pointing at the **same**
+   client-id/secret as the existing Gmail/Calendar config — under
+   `{workspaceBase}/admin/oauth-apps.yml` (the same admin directory
+   that holds `pack-sources.yml`, `themes/`, `hints/`, etc.):
 
    ```yaml
    apps:
      google-workspace:
-       client-id: 1234567890-abcdef.apps.googleusercontent.com
-       client-secret: GOCSPX-...
+       client-id: 1234567890-abcdef.apps.googleusercontent.com   # same value as assistant.google.client-id
+       client-secret: GOCSPX-...                                   # same value as assistant.google.client-secret
    ```
 
    Hot-reloaded — no restart needed. Every workspace in the
    installation will see "Authorize" appear in Settings.
+
+   End users will see two Connected Services entries (the legacy
+   Gmail/Calendar one, and Google Workspace) and consent twice.
+   That's the price of the legacy split; once the in-code
+   Gmail/Calendar services migrate to read from `google-workspace`,
+   the legacy entry retires and there's just one consent.
 
 A specific workspace can opt out of the installation default and
 point at its own Google Cloud app by writing the same shape to
