@@ -51,16 +51,21 @@
       auth: bearer
       account-id-field: sub
       display-name-field: email
+  # operation-ids match the canonicalised spec form: dots in the
+  # spec's operationIds get sanitised to underscores; for the apis.yml
+  # allowlist we use slashes (which the framework's canonicalOpId
+  # already normalises to underscore) — same pattern as pack-github
+  # uses (`issues/list-for-repo`).
   operation-ids:
-    - spreadsheets.create
-    - spreadsheets.get
-    - spreadsheets.batchUpdate
-    - spreadsheets.values.get
-    - spreadsheets.values.batchGet
-    - spreadsheets.values.update
-    - spreadsheets.values.append
-    - spreadsheets.values.batchUpdate
-    - spreadsheets.values.clear
+    - spreadsheets/create
+    - spreadsheets/get
+    - spreadsheets/batchUpdate
+    - spreadsheets/values/get
+    - spreadsheets/values/batchGet
+    - spreadsheets/values/update
+    - spreadsheets/values/append
+    - spreadsheets/values/batchUpdate
+    - spreadsheets/values/clear
 
 - url: drive-v3.json
   name: drive
@@ -80,14 +85,14 @@
       account-id-field: sub
       display-name-field: email
   operation-ids:
-    - files.list
-    - files.get
-    - files.create
-    - files.update
-    - files.copy
-    - files.export
-    - permissions.list
-    - permissions.create
+    - files/list
+    - files/get
+    - files/create
+    - files/update
+    - files/copy
+    - files/export
+    - permissions/list
+    - permissions/create
 
 - url: docs-v1.json
   name: docs
@@ -107,6 +112,6 @@
       account-id-field: sub
       display-name-field: email
   operation-ids:
-    - documents.create
-    - documents.get
-    - documents.batchUpdate
+    - documents/create
+    - documents/get
+    - documents/batchUpdate
