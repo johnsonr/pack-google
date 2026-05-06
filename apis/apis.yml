@@ -13,18 +13,19 @@
 # user's workspace. End users just click "Authorize" in
 # Settings → Connected Services.
 #
-# All three entries declare the same `oauth2:` block (auth-url,
-# token-url, scopes, identity), so the assistant treats them as one
-# OAuth flow against `google-workspace` — one consent screen, one
-# token slot in the CredentialStore (`google-workspace_OAUTH2#${sub}`),
-# all three services authorized in a single click.
+# All three entries declare `oauth2.provider: google-workspace`, so the
+# assistant treats them as one OAuth flow against a single shared
+# provider — one consent screen, one CredentialStore slot
+# (`google-workspace_OAUTH2#default`), all three services authorized in
+# a single click. Requires assistant ≥ the version that supports the
+# `oauth2.provider:` field on apis.yml entries (added 2026-05-06).
 #
-# IMPORTANT: provider id is `google-workspace`, NOT `google`. The
-# in-code Gmail/Calendar integration in the assistant repo currently
-# uses the legacy provider id `google`; sharing the slot would let
-# the two scope sets clobber each other. Once the in-code services
-# migrate to read from this slot, the legacy `google` provider can be
-# retired (one-time re-consent for existing users).
+# Provider id is `google-workspace`, NOT `google`. The in-code
+# Gmail/Calendar integration in the assistant repo currently uses the
+# legacy provider id `google`; sharing the slot would let the two scope
+# sets clobber each other. Once the in-code services migrate to read
+# from this slot, the legacy `google` provider can be retired
+# (one-time re-consent for existing users).
 #
 # Curation strategy (operation-ids): keep the surface small. Drive in
 # particular has 48 operations; we expose the dozen that cover ~95%
@@ -44,8 +45,6 @@
     scopes: >-
       openid email profile
       https://www.googleapis.com/auth/spreadsheets
-      https://www.googleapis.com/auth/drive
-      https://www.googleapis.com/auth/documents
     identity:
       url: https://openidconnect.googleapis.com/v1/userinfo
       method: GET
@@ -73,9 +72,7 @@
     token-url: https://oauth2.googleapis.com/token
     scopes: >-
       openid email profile
-      https://www.googleapis.com/auth/spreadsheets
       https://www.googleapis.com/auth/drive
-      https://www.googleapis.com/auth/documents
     identity:
       url: https://openidconnect.googleapis.com/v1/userinfo
       method: GET
@@ -102,8 +99,6 @@
     token-url: https://oauth2.googleapis.com/token
     scopes: >-
       openid email profile
-      https://www.googleapis.com/auth/spreadsheets
-      https://www.googleapis.com/auth/drive
       https://www.googleapis.com/auth/documents
     identity:
       url: https://openidconnect.googleapis.com/v1/userinfo

@@ -1,6 +1,6 @@
 name: google
 description: "Google Workspace integration — Sheets v4, Drive v3, and Docs v1, typed via vendored official OpenAPI 3 specs so the LLM sees full request AND response types and doesn't have to guess request grammar (especially for Sheets `values.batchUpdate` and Docs `documents.batchUpdate`, which are gnarly enough that flat tool descriptions never get there). Single OAuth2 consent against a `google-workspace` provider covers all three services. Bundles three Agent Skills (`google-sheets-workflows`, `google-drive-workflows`, `google-docs-workflows`) that teach the workflow patterns small chat models otherwise miss."
-version: 0.1.0
+version: 0.2.0
 author: Rod Johnson
 url: https://github.com/johnsonr/pack-google
 tags:
