@@ -15,15 +15,15 @@ by underscores:
 
 | Need | Method |
 |---|---|
-| Create a spreadsheet | `spreadsheets_create` |
-| Read spreadsheet metadata (sheets list, properties) | `spreadsheets_get` |
-| Modify structure (add/remove sheets, formatting, cond. formatting) | `spreadsheets_batchUpdate` |
-| Read one range | `spreadsheets_values_get` |
-| Read several ranges in one call | `spreadsheets_values_batchGet` |
-| Write one range (overwrite) | `spreadsheets_values_update` |
-| Write several ranges | `spreadsheets_values_batchUpdate` |
-| Append rows after the last data row | `spreadsheets_values_append` |
-| Clear values (keep formatting) | `spreadsheets_values_clear` |
+| Create a spreadsheet | `spreadsheetsCreate` |
+| Read spreadsheet metadata (sheets list, properties) | `spreadsheetsGet` |
+| Modify structure (add/remove sheets, formatting, cond. formatting) | `spreadsheetsBatchUpdate` |
+| Read one range | `spreadsheetsValuesGet` |
+| Read several ranges in one call | `spreadsheetsValuesBatchGet` |
+| Write one range (overwrite) | `spreadsheetsValuesUpdate` |
+| Write several ranges | `spreadsheetsValuesBatchUpdate` |
+| Append rows after the last data row | `spreadsheetsValuesAppend` |
+| Clear values (keep formatting) | `spreadsheetsValuesClear` |
 
 If a call returns `gateway.sheets.foo is not a workspace tool`, the
 error lists every valid method — pick from it. Never re-send the
@@ -31,9 +31,9 @@ same call.
 
 ## Cardinal rules
 
-1. **Two different `batchUpdate`s.** `spreadsheets_batchUpdate` modifies
+1. **Two different `batchUpdate`s.** `spreadsheetsBatchUpdate` modifies
    structure (sheets, formatting, conditional rules, charts).
-   `spreadsheets_values_batchUpdate` modifies cell values. They take
+   `spreadsheetsValuesBatchUpdate` modifies cell values. They take
    completely different request bodies. Pick by what you're changing.
 2. **A1 notation is the only way to address ranges.** `Sheet1!A1:D100`,
    `Sheet1!A:A` (whole column), `Sheet1!1:1` (whole row), `Sheet1`
@@ -57,7 +57,7 @@ same call.
 **One range:**
 
 ```javascript
-const r = await gateway.sheets.spreadsheets_values_get({
+const r = await gateway.sheets.spreadsheetsValuesGet({
   spreadsheetId: "1abc...",
   range: "Pipeline!A1:D",                     // open-ended → up to last row
   valueRenderOption: "FORMATTED_VALUE",       // default; "UNFORMATTED_VALUE" returns raw numbers
@@ -69,7 +69,7 @@ const rows = r.values ?? [];                  // null if range is empty
 **Several ranges in one call** (one round-trip, much faster than N gets):
 
 ```javascript
-const r = await gateway.sheets.spreadsheets_values_batchGet({
+const r = await gateway.sheets.spreadsheetsValuesBatchGet({
   spreadsheetId: "1abc...",
   ranges: ["Pipeline!A:A", "Forecast!B2:B100", "Notes!A1"],
 });
@@ -80,7 +80,7 @@ const [ids, forecasts, note] = r.valueRanges.map(v => v.values ?? []);
 batchUpdate — it's NOT the spreadsheetId):
 
 ```javascript
-const meta = await gateway.sheets.spreadsheets_get({
+const meta = await gateway.sheets.spreadsheetsGet({
   spreadsheetId: "1abc...",
   fields: "sheets(properties(sheetId,title,gridProperties))",
 });
@@ -92,7 +92,7 @@ for (const s of meta.sheets) console.log(s.properties.sheetId, s.properties.titl
 **Overwrite a range:**
 
 ```javascript
-await gateway.sheets.spreadsheets_values_update({
+await gateway.sheets.spreadsheetsValuesUpdate({
   spreadsheetId: "1abc...",
   range: "Pipeline!E1",
   valueInputOption: "USER_ENTERED",
@@ -103,7 +103,7 @@ await gateway.sheets.spreadsheets_values_update({
 **Multiple ranges in one call:**
 
 ```javascript
-await gateway.sheets.spreadsheets_values_batchUpdate({
+await gateway.sheets.spreadsheetsValuesBatchUpdate({
   spreadsheetId: "1abc...",
   body: {
     valueInputOption: "USER_ENTERED",
@@ -119,7 +119,7 @@ await gateway.sheets.spreadsheets_values_batchUpdate({
 **Append rows** (auto-finds the row after the last filled one):
 
 ```javascript
-await gateway.sheets.spreadsheets_values_append({
+await gateway.sheets.spreadsheetsValuesAppend({
   spreadsheetId: "1abc...",
   range: "Pipeline",                          // bare sheet name; Sheets picks the table
   valueInputOption: "USER_ENTERED",
@@ -131,13 +131,13 @@ await gateway.sheets.spreadsheets_values_append({
 **Clear** (keep formatting, drop values):
 
 ```javascript
-await gateway.sheets.spreadsheets_values_clear({
+await gateway.sheets.spreadsheetsValuesClear({
   spreadsheetId: "1abc...",
   range: "Pipeline!A2:D",
 });
 ```
 
-## Modifying structure (`spreadsheets_batchUpdate`)
+## Modifying structure (`spreadsheetsBatchUpdate`)
 
 The big one. Takes `{ requests: [Request, ...] }` where each `Request`
 is a tagged union — one (and only one) of `addSheet`, `deleteSheet`,
@@ -147,7 +147,7 @@ is a tagged union — one (and only one) of `addSheet`, `deleteSheet`,
 **Add a sheet:**
 
 ```javascript
-const r = await gateway.sheets.spreadsheets_batchUpdate({
+const r = await gateway.sheets.spreadsheetsBatchUpdate({
   spreadsheetId: "1abc...",
   body: {
     requests: [
@@ -162,7 +162,7 @@ const newSheetId = r.replies[0].addSheet.properties.sheetId;
 the same cell format across a range):
 
 ```javascript
-await gateway.sheets.spreadsheets_batchUpdate({
+await gateway.sheets.spreadsheetsBatchUpdate({
   spreadsheetId: "1abc...",
   body: {
     requests: [{
@@ -184,7 +184,7 @@ await gateway.sheets.spreadsheets_batchUpdate({
 **Auto-resize columns:**
 
 ```javascript
-await gateway.sheets.spreadsheets_batchUpdate({
+await gateway.sheets.spreadsheetsBatchUpdate({
   spreadsheetId: "1abc...",
   body: {
     requests: [{
@@ -199,7 +199,7 @@ await gateway.sheets.spreadsheets_batchUpdate({
 **Conditional formatting** (red fill if Stage = "lost"):
 
 ```javascript
-await gateway.sheets.spreadsheets_batchUpdate({
+await gateway.sheets.spreadsheetsBatchUpdate({
   spreadsheetId: "1abc...",
   body: {
     requests: [{
@@ -222,7 +222,7 @@ await gateway.sheets.spreadsheets_batchUpdate({
 
 - **`sheetId` ≠ `spreadsheetId`.** `spreadsheetId` is the doc; `sheetId`
   is one tab inside it (a number, often 0 for the first tab). Look it
-  up via `spreadsheets_get` with `fields: "sheets(properties(sheetId,title))"`.
+  up via `spreadsheetsGet` with `fields: "sheets(properties(sheetId,title))"`.
 - **Index ranges in `batchUpdate` are half-open** (`endRowIndex` is
   exclusive). A1 ranges in `values_*` are closed (`A1:A1` is one cell).
 - **`fields` is mandatory** on `repeatCell`, `updateCells`,
@@ -235,9 +235,9 @@ await gateway.sheets.spreadsheets_batchUpdate({
   `""`. `values[0].length` may be smaller than the column count. Always
   read with a default: `row[3] ?? ""`.
 - **`UPDATE` doesn't extend the sheet.** Writing to `A101` on a
-  100-row sheet errors. Either resize first via `spreadsheets_batchUpdate`
+  100-row sheet errors. Either resize first via `spreadsheetsBatchUpdate`
   → `appendDimension`, or just use `values_append`.
 - **Quota:** ~100 read or write requests per 100 seconds per user.
   Batch reads with `values_batchGet`, writes with `values_batchUpdate`,
   structural changes by stuffing many `requests` into one
-  `spreadsheets_batchUpdate`. Don't loop one cell at a time.
+  `spreadsheetsBatchUpdate`. Don't loop one cell at a time.

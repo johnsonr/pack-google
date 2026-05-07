@@ -12,14 +12,14 @@ Calls go through `gateway.drive.<method>(args)` from inside
 
 | Need | Method |
 |---|---|
-| Search / list files | `files_list` |
-| Get a single file's metadata or content | `files_get` |
-| Create a new file (upload or empty) | `files_create` |
-| Update metadata or replace content | `files_update` |
-| Make a copy | `files_copy` |
-| Convert Google-native file → PDF/DOCX/XLSX/CSV | `files_export` |
-| List sharing on a file | `permissions_list` |
-| Add a sharer | `permissions_create` |
+| Search / list files | `filesList` |
+| Get a single file's metadata or content | `filesGet` |
+| Create a new file (upload or empty) | `filesCreate` |
+| Update metadata or replace content | `filesUpdate` |
+| Make a copy | `filesCopy` |
+| Convert Google-native file → PDF/DOCX/XLSX/CSV | `filesExport` |
+| List sharing on a file | `permissionsList` |
+| Add a sharer | `permissionsCreate` |
 
 If a call returns `gateway.drive.foo is not a workspace tool`, the
 error lists every valid method — pick from it. Never re-send the same
@@ -33,23 +33,23 @@ call.
 2. **`fields` controls what comes back.** Default is a sparse subset
    (id, name, mimeType). For anything else — `modifiedTime`, `owners`,
    `webViewLink`, `parents` — pass `fields: "files(id,name,modifiedTime,owners(emailAddress))"`.
-   The same applies to single-file `files_get` (`fields: "id,name,..."`,
+   The same applies to single-file `filesGet` (`fields: "id,name,..."`,
    no `files(...)` wrapper).
-3. **Google-native files need `files_export`, not `files_get`.** Asking
-   `files_get` for the contents of a Google Doc returns metadata, not
-   the document body. Use `files_export` with a target mime type.
+3. **Google-native files need `filesExport`, not `filesGet`.** Asking
+   `filesGet` for the contents of a Google Doc returns metadata, not
+   the document body. Use `filesExport` with a target mime type.
 4. **`mimeType` on create = the type you want it to be.** To make a
    Google Sheet, pass `mimeType: "application/vnd.google-apps.spreadsheet"`
-   on `files_create`. To upload a CSV that gets imported as a Sheet,
+   on `filesCreate`. To upload a CSV that gets imported as a Sheet,
    create with `mimeType: "application/vnd.google-apps.spreadsheet"`
    and source body `text/csv`.
-5. **Permissions are additive.** `permissions_create` adds a sharer;
+5. **Permissions are additive.** `permissionsCreate` adds a sharer;
    it doesn't replace existing ones. Repeated calls with the same email
    produce duplicate permission rows.
 
 ## Drive search query language (the `q` parameter)
 
-The most powerful — and most underused — parameter on `files_list`.
+The most powerful — and most underused — parameter on `filesList`.
 
 | Predicate | Example |
 |---|---|
@@ -76,7 +76,7 @@ Common Google MIME types:
 | Shortcut | `application/vnd.google-apps.shortcut` |
 
 ```javascript
-const r = await gateway.drive.files_list({
+const r = await gateway.drive.filesList({
   q: "mimeType='application/vnd.google-apps.spreadsheet' and name contains 'Q2' and trashed=false",
   fields: "files(id, name, modifiedTime, owners(emailAddress), webViewLink), nextPageToken",
   pageSize: 50,
@@ -90,7 +90,7 @@ for (const f of r.files) console.log(f.modifiedTime, f.name, f.webViewLink);
 ```javascript
 let pageToken, all = [];
 for (let p = 0; p < 5; p++) {                 // hard cap
-  const r = await gateway.drive.files_list({
+  const r = await gateway.drive.filesList({
     q: "trashed=false and 'me' in owners",
     fields: "files(id, name, mimeType, modifiedTime), nextPageToken",
     pageSize: 100,
@@ -105,7 +105,7 @@ for (let p = 0; p < 5; p++) {                 // hard cap
 ## Get file metadata or content
 
 ```javascript
-const meta = await gateway.drive.files_get({
+const meta = await gateway.drive.filesGet({
   fileId: "abc123",
   fields: "id, name, mimeType, size, owners(emailAddress), webViewLink, parents",
 });
@@ -115,44 +115,44 @@ For **non-Google files** (PDFs, images, plain text uploaded to Drive),
 fetch the body with `alt: "media"`:
 
 ```javascript
-const bytes = await gateway.drive.files_get({
+const bytes = await gateway.drive.filesGet({
   fileId: "pdf-id",
   alt: "media",
 });
 // bytes is the binary body (or text for text/* mime types)
 ```
 
-For **Google-native files**, use `files_export` instead.
+For **Google-native files**, use `filesExport` instead.
 
 ## Export Google-native files
 
 ```javascript
 // Doc → PDF
-const pdf = await gateway.drive.files_export({
+const pdf = await gateway.drive.filesExport({
   fileId: "doc-id",
   mimeType: "application/pdf",
 });
 
 // Doc → plain text (cheap; great for letting the LLM read the body)
-const txt = await gateway.drive.files_export({
+const txt = await gateway.drive.filesExport({
   fileId: "doc-id",
   mimeType: "text/plain",
 });
 
 // Sheet → CSV (only the first sheet/tab; for all tabs export to XLSX)
-const csv = await gateway.drive.files_export({
+const csv = await gateway.drive.filesExport({
   fileId: "sheet-id",
   mimeType: "text/csv",
 });
 
 // Sheet → XLSX
-const xlsx = await gateway.drive.files_export({
+const xlsx = await gateway.drive.filesExport({
   fileId: "sheet-id",
   mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 });
 
 // Slides → PDF
-const slidesPdf = await gateway.drive.files_export({
+const slidesPdf = await gateway.drive.filesExport({
   fileId: "slides-id",
   mimeType: "application/pdf",
 });
@@ -166,7 +166,7 @@ For non-text exports the result is binary bytes — pass it on to
 **Empty Google Sheet inside a specific folder:**
 
 ```javascript
-const f = await gateway.drive.files_create({
+const f = await gateway.drive.filesCreate({
   body: {
     name: "Q3 Forecast",
     mimeType: "application/vnd.google-apps.spreadsheet",
@@ -180,7 +180,7 @@ console.log(`Created sheet ${f.id}`);
 
 ```javascript
 const csv = "Date,Account,Amount\n2026-05-06,Acme,25000\n";
-const f = await gateway.drive.files_create({
+const f = await gateway.drive.filesCreate({
   body: {
     name: "Imported Forecast",
     mimeType: "application/vnd.google-apps.spreadsheet",       // the desired type
@@ -197,7 +197,7 @@ const f = await gateway.drive.files_create({
 ## Copy and rename
 
 ```javascript
-const f = await gateway.drive.files_copy({
+const f = await gateway.drive.filesCopy({
   fileId: "template-id",
   body: { name: "Q3 — copy of template", parents: ["folder-id"] },
 });
@@ -206,7 +206,7 @@ const f = await gateway.drive.files_copy({
 ## Move (= update parents)
 
 ```javascript
-await gateway.drive.files_update({
+await gateway.drive.filesUpdate({
   fileId: "abc123",
   addParents: "new-folder-id",
   removeParents: "old-folder-id",
@@ -216,13 +216,13 @@ await gateway.drive.files_update({
 ## Sharing — list and add
 
 ```javascript
-const r = await gateway.drive.permissions_list({
+const r = await gateway.drive.permissionsList({
   fileId: "abc123",
   fields: "permissions(id, emailAddress, role, type)",
 });
 for (const p of r.permissions) console.log(p.emailAddress, p.role);
 
-await gateway.drive.permissions_create({
+await gateway.drive.permissionsCreate({
   fileId: "abc123",
   sendNotificationEmail: false,                 // true sends Gmail notification with optional message
   body: {
@@ -236,7 +236,7 @@ await gateway.drive.permissions_create({
 For **link sharing**, type=`anyone`:
 
 ```javascript
-await gateway.drive.permissions_create({
+await gateway.drive.permissionsCreate({
   fileId: "abc123",
   body: { type: "anyone", role: "reader" },
 });
@@ -259,11 +259,11 @@ To **transfer ownership**, role=`owner` plus `transferOwnership: true`
   in trash forever unless permanently removed. Always include
   `trashed = false` in queries unless you're explicitly looking in
   trash.
-- **`files_export` only works on Google-native files.** PDFs, images,
-  and uploaded Office files use `files_get` with `alt: "media"`.
-- **Permissions don't deduplicate.** Calling `permissions_create`
+- **`filesExport` only works on Google-native files.** PDFs, images,
+  and uploaded Office files use `filesGet` with `alt: "media"`.
+- **Permissions don't deduplicate.** Calling `permissionsCreate`
   twice for the same email creates two permission rows. Check via
-  `permissions_list` before adding.
+  `permissionsList` before adding.
 - **Rate limits:** ~10,000 queries per 100 sec per user (per
   project). Reasonable, but tight loops over 1k+ files will hit
   it — page in 100s and use `fields` to keep responses small.

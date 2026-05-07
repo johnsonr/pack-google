@@ -1,16 +1,16 @@
 # pack-google — usage examples
 
 Three independent gateways: `gateway.sheets.*`, `gateway.drive.*`,
-`gateway.docs.*`. Methods are the operationId from the spec with dots
-replaced by underscores (e.g. `spreadsheets.values.batchUpdate` →
-`spreadsheets_values_batchUpdate`). The bundled per-service skills
+`gateway.docs.*`. Methods are the spec operationId camelCased on dot
+boundaries (e.g. `spreadsheets.values.batchUpdate` →
+`spreadsheetsValuesBatchUpdate`). The bundled per-service skills
 have the deeper request grammar.
 
 ## Read a sheet, then update one cell
 
 ```javascript
 const ssId = "1abc...XYZ";
-const r = await gateway.sheets.spreadsheets_values_get({
+const r = await gateway.sheets.spreadsheetsValuesGet({
   spreadsheetId: ssId,
   range: "Sheet1!A1:D100",
 });
@@ -18,7 +18,7 @@ const r = await gateway.sheets.spreadsheets_values_get({
 // not necessarily a header — don't assume.
 console.log(`Got ${r.values?.length ?? 0} rows`);
 
-await gateway.sheets.spreadsheets_values_update({
+await gateway.sheets.spreadsheetsValuesUpdate({
   spreadsheetId: ssId,
   range: "Sheet1!E1",
   valueInputOption: "USER_ENTERED",          // parses formulas, dates
@@ -29,7 +29,7 @@ await gateway.sheets.spreadsheets_values_update({
 ## Append rows to a sheet
 
 ```javascript
-await gateway.sheets.spreadsheets_values_append({
+await gateway.sheets.spreadsheetsValuesAppend({
   spreadsheetId: ssId,
   range: "Sheet1",                            // bare sheet name → append below last row
   valueInputOption: "USER_ENTERED",
@@ -46,14 +46,14 @@ await gateway.sheets.spreadsheets_values_append({
 ## Create a sheet and seed it
 
 ```javascript
-const ss = await gateway.sheets.spreadsheets_create({
+const ss = await gateway.sheets.spreadsheetsCreate({
   body: {
     properties: { title: "Q2 Forecast" },
     sheets: [{ properties: { title: "Pipeline" } }],
   },
 });
 const id = ss.spreadsheetId;
-await gateway.sheets.spreadsheets_values_update({
+await gateway.sheets.spreadsheetsValuesUpdate({
   spreadsheetId: id,
   range: "Pipeline!A1:D1",
   valueInputOption: "RAW",
@@ -65,7 +65,7 @@ console.log(`Created ${ss.spreadsheetUrl}`);
 ## Find a Google Sheet by name
 
 ```javascript
-const r = await gateway.drive.files_list({
+const r = await gateway.drive.filesList({
   q: "mimeType='application/vnd.google-apps.spreadsheet' and name='Q2 Forecast' and trashed=false",
   fields: "files(id, name, modifiedTime, webViewLink)",
   pageSize: 10,
@@ -78,7 +78,7 @@ console.log(`${sheet.name} → ${sheet.webViewLink}`);
 ## Search Drive by content / owner
 
 ```javascript
-const r = await gateway.drive.files_list({
+const r = await gateway.drive.filesList({
   q: "fullText contains 'pricing' and 'alice@acme.com' in owners and trashed=false",
   fields: "files(id, name, mimeType, owners(emailAddress), modifiedTime)",
   pageSize: 50,
@@ -89,12 +89,12 @@ for (const f of r.files) console.log(f.modifiedTime, f.name);
 ## Export a Google Doc to PDF
 
 ```javascript
-const r = await gateway.drive.files_export({
+const r = await gateway.drive.filesExport({
   fileId: "doc-id-here",
   mimeType: "application/pdf",
 });
 // r is the file bytes (binary). For text-only export:
-const txt = await gateway.drive.files_export({
+const txt = await gateway.drive.filesExport({
   fileId: "doc-id-here",
   mimeType: "text/plain",
 });
@@ -104,7 +104,7 @@ console.log(typeof txt === "string" ? txt.slice(0, 500) : "(binary)");
 ## Share a file
 
 ```javascript
-await gateway.drive.permissions_create({
+await gateway.drive.permissionsCreate({
   fileId: "abc123",
   sendNotificationEmail: false,
   body: {
@@ -118,7 +118,7 @@ await gateway.drive.permissions_create({
 ## Read a Google Doc as structured content
 
 ```javascript
-const d = await gateway.docs.documents_get({ documentId: "doc-id-here" });
+const d = await gateway.docs.documentsGet({ documentId: "doc-id-here" });
 // d.body.content is a list of StructuralElement.
 // Each can be paragraph | sectionBreak | table | tableOfContents.
 const text = (d.body?.content ?? [])
@@ -131,7 +131,7 @@ console.log(text.slice(0, 500));
 ## Insert text into a Google Doc
 
 ```javascript
-await gateway.docs.documents_batchUpdate({
+await gateway.docs.documentsBatchUpdate({
   documentId: "doc-id-here",
   body: {
     requests: [
@@ -150,7 +150,7 @@ await gateway.docs.documents_batchUpdate({
 
 ```javascript
 const ssId = "1abc...XYZ";
-const r = await gateway.sheets.spreadsheets_values_get({
+const r = await gateway.sheets.spreadsheetsValuesGet({
   spreadsheetId: ssId,
   range: "Pipeline!A2:D",
 });
@@ -158,7 +158,7 @@ const rows = r.values ?? [];
 const total = rows.reduce((sum, row) => sum + parseFloat(row[3] || "0"), 0);
 const open  = rows.filter(row => (row[2] || "").toLowerCase() !== "closed-won").length;
 
-await gateway.sheets.spreadsheets_values_update({
+await gateway.sheets.spreadsheetsValuesUpdate({
   spreadsheetId: ssId,
   range: "Pipeline!F1:G2",
   valueInputOption: "RAW",

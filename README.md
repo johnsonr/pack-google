@@ -32,12 +32,13 @@ Three independent gateways:
 - `gateway.drive.<method>(args)`
 - `gateway.docs.<method>(args)`
 
-Methods are the operationId after sanitization (dots → underscores).
+Methods are the spec operationId camelCased on dot boundaries
+(`spreadsheets.values.batchUpdate` → `spreadsheetsValuesBatchUpdate`).
 E.g.:
 
-- `gateway.sheets.spreadsheets_values_batchUpdate({ spreadsheetId, body: { ... } })`
-- `gateway.drive.files_list({ q: "name contains 'invoice'" })`
-- `gateway.docs.documents_batchUpdate({ documentId, body: { requests: [...] } })`
+- `gateway.sheets.spreadsheetsValuesBatchUpdate({ spreadsheetId, body: { ... } })`
+- `gateway.drive.filesList({ q: "name contains 'invoice'" })`
+- `gateway.docs.documentsBatchUpdate({ documentId, body: { requests: [...] } })`
 
 If a call returns `gateway.X.foo is not a workspace tool`, the error
 lists every valid method — pick from it. Never re-send the same call.

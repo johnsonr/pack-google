@@ -13,23 +13,23 @@ Calls go through `gateway.docs.<method>(args)` from inside
 
 | Need | Method |
 |---|---|
-| Create a new document | `documents_create` |
-| Read structured content | `documents_get` |
-| Edit (insert, delete, format, replace, tables) | `documents_batchUpdate` |
+| Create a new document | `documentsCreate` |
+| Read structured content | `documentsGet` |
+| Edit (insert, delete, format, replace, tables) | `documentsBatchUpdate` |
 
 If a call returns `gateway.docs.foo is not a workspace tool`, the
 error lists the three valid methods.
 
-## Cardinal rule: it's all `documents_batchUpdate`
+## Cardinal rule: it's all `documentsBatchUpdate`
 
-The Docs API has exactly ONE write method: `documents_batchUpdate`.
+The Docs API has exactly ONE write method: `documentsBatchUpdate`.
 Every edit — type a character, bold a word, insert a table, replace
 all instances of "Foo" with "Bar" — is a `Request` in the `requests`
 array. Knowing the request grammar IS the skill.
 
 ## Document model
 
-`documents_get` returns:
+`documentsGet` returns:
 
 ```text
 Document
@@ -57,7 +57,7 @@ formatting marks, so:
 Read the body as plain text:
 
 ```javascript
-const d = await gateway.docs.documents_get({ documentId: "abc..." });
+const d = await gateway.docs.documentsGet({ documentId: "abc..." });
 
 function flatten(elements) {
   let out = "";
@@ -109,7 +109,7 @@ apply to the pre-batch state. So you can confidently insert text at
 index 1 AND format index 1..15 in the same batch.
 
 But the response indices are post-batch. If you need to know where a
-just-inserted run ended up, do a `documents_get` after.
+just-inserted run ended up, do a `documentsGet` after.
 
 ## Common patterns
 
@@ -119,7 +119,7 @@ The fastest way to fill out a templated doc. Operates on the literal
 text — no index math needed.
 
 ```javascript
-await gateway.docs.documents_batchUpdate({
+await gateway.docs.documentsBatchUpdate({
   documentId: "doc-id",
   body: {
     requests: [
@@ -134,7 +134,7 @@ await gateway.docs.documents_batchUpdate({
 ### Insert a heading at the top
 
 ```javascript
-await gateway.docs.documents_batchUpdate({
+await gateway.docs.documentsBatchUpdate({
   documentId: "doc-id",
   body: {
     requests: [
@@ -155,11 +155,11 @@ await gateway.docs.documents_batchUpdate({
 Read it once, then insert there.
 
 ```javascript
-const d = await gateway.docs.documents_get({ documentId: "doc-id", fields: "body(content(endIndex))" });
+const d = await gateway.docs.documentsGet({ documentId: "doc-id", fields: "body(content(endIndex))" });
 const last = d.body.content.at(-1);
 const end = last.endIndex - 1;
 
-await gateway.docs.documents_batchUpdate({
+await gateway.docs.documentsBatchUpdate({
   documentId: "doc-id",
   body: {
     requests: [
@@ -172,7 +172,7 @@ await gateway.docs.documents_batchUpdate({
 ### Bold and color a phrase
 
 ```javascript
-await gateway.docs.documents_batchUpdate({
+await gateway.docs.documentsBatchUpdate({
   documentId: "doc-id",
   body: {
     requests: [{
@@ -194,7 +194,7 @@ await gateway.docs.documents_batchUpdate({
 Two phases — table creation first (so indices stabilize), then fill.
 
 ```javascript
-await gateway.docs.documents_batchUpdate({
+await gateway.docs.documentsBatchUpdate({
   documentId: "doc-id",
   body: {
     requests: [{ insertTable: { rows: 3, columns: 3, location: { index: 1 } } }],
@@ -203,7 +203,7 @@ await gateway.docs.documents_batchUpdate({
 
 // Re-read to find the cell indices (they're not deterministic from
 // the inputs because Docs surrounds the table with paragraph marks).
-const d = await gateway.docs.documents_get({ documentId: "doc-id" });
+const d = await gateway.docs.documentsGet({ documentId: "doc-id" });
 // Walk d.body.content for `table`, then table.tableRows[r].tableCells[c].content[0]
 // → grab its startIndex; that's where the cell's first paragraph begins.
 // Then issue insertText for each cell in a single batch.
@@ -216,7 +216,7 @@ walk paragraphs to find offsets, then issue `updateTextStyle` on the
 ranges. Example: bold every "TODO" in the doc.
 
 ```javascript
-const d = await gateway.docs.documents_get({ documentId: "doc-id" });
+const d = await gateway.docs.documentsGet({ documentId: "doc-id" });
 const ranges = [];
 function walk(elements, base = 0) {
   for (const el of elements) {
@@ -240,7 +240,7 @@ function walk(elements, base = 0) {
 }
 walk(d.body.content);
 
-await gateway.docs.documents_batchUpdate({
+await gateway.docs.documentsBatchUpdate({
   documentId: "doc-id",
   body: {
     requests: ranges.map(r => ({
