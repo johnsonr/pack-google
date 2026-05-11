@@ -42,9 +42,19 @@
     provider: google-workspace
     auth-url: https://accounts.google.com/o/oauth2/v2/auth
     token-url: https://oauth2.googleapis.com/token
+    # Sheets' own scope plus Gmail + Calendar so a single
+    # `google-workspace` consent flow covers the in-code Gmail and
+    # Calendar integrations in the assistant repo (they read tokens
+    # from the same per-account slot the OAuth callback writes here).
+    # The framework unions scopes across every entry in the
+    # `provider: google-workspace` group, so the consent screen
+    # requests the full set — Gmail/Calendar would work attached to
+    # any entry; they live here to keep them in one place.
     scopes: >-
       openid email profile
       https://www.googleapis.com/auth/spreadsheets
+      https://www.googleapis.com/auth/gmail.modify
+      https://www.googleapis.com/auth/calendar
     identity:
       url: https://openidconnect.googleapis.com/v1/userinfo
       method: GET
