@@ -48,9 +48,14 @@ same call.
    rows, inner is cells. Even single-cell writes need `[[value]]`.
    Sheets returns numbers as numbers and dates as serial-day floats —
    not ISO strings.
-5. **Don't assume row 1 is headers.** Some sheets put titles in row 1
-   and headers in row 2 or 3. If the user says "the data has a header
-   row", confirm by reading the first few rows first.
+5. **ALWAYS probe shape first.** Before computing anything (average,
+   sum, count, lookup), run a small `spreadsheetsValuesGet` for the
+   first 3-5 rows of a wide range (e.g. `Sheet1!A1:Z5`) and `print` it.
+   Look at what you got: is row 1 a title? a header? data? Which column
+   holds the numbers? Are the columns named at all? Then write the real
+   script. Don't guess that there's a "Rating" column header — verify.
+   Skipping this is the #1 cause of "no ratings found" / "column missing"
+   / silently-zero-results bugs.
 
 ## Reading
 
@@ -64,6 +69,24 @@ const r = await gateway.sheets.spreadsheetsValuesGet({
   dateTimeRenderOption: "FORMATTED_STRING",   // or "SERIAL_NUMBER"
 });
 const rows = r.values ?? [];                  // null if range is empty
+```
+
+**Compute in the script — return a small answer, not the rows.** If
+the user asked "what's the average / count / sum / max," do the math
+here and return just the number. Returning the raw `values` array
+dumps the sheet into the LLM context, where the next turn re-parses
+it inline (badly).
+
+```javascript
+const r = await gateway.sheets.spreadsheetsValuesGet({
+  spreadsheetId: "1abc...",
+  range: "Sheet1!B:B",
+  valueRenderOption: "UNFORMATTED_VALUE",     // numbers come back as numbers
+});
+const ratings = (r.values ?? []).flat().filter(v => typeof v === "number");
+const avg = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+return { count: ratings.length, average: Number(avg.toFixed(2)) };
+// NOT: return { rows: r.values }    ← this dumps the sheet into context
 ```
 
 **Several ranges in one call** (one round-trip, much faster than N gets):

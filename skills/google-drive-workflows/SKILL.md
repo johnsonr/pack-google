@@ -46,6 +46,12 @@ call.
 5. **Permissions are additive.** `permissionsCreate` adds a sharer;
    it doesn't replace existing ones. Repeated calls with the same email
    produce duplicate permission rows.
+6. **For analytical questions about a Google Sheet, switch to
+   `gateway.sheets.*`, not `filesExport`.** "Average of column B,"
+   "count of rows where X," "sum total" — those need structured rows,
+   not a CSV blob. `filesExport` is for *delivering* a file (download,
+   share, convert). Reading a Sheet to compute over it is a Sheets job;
+   exporting to CSV and parsing it is the slow, error-prone path.
 
 ## Drive search query language (the `q` parameter)
 
@@ -126,32 +132,36 @@ For **Google-native files**, use `filesExport` instead.
 
 ## Export Google-native files
 
+`filesExport` is for **delivering** a file (download, share, attach,
+convert) — not for reading one to compute over. If the user wants an
+average / count / sum / lookup from a Google Sheet, switch to
+`google-sheets-workflows` and use `gateway.sheets.spreadsheetsValuesGet`
+on a range. The Sheets API returns structured rows; CSV export returns
+a blob you have to parse, which goes wrong on quoted fields, headerless
+sheets, and trailing blanks. Same for Docs: if the user wants you to
+*answer questions about* a Doc body, prefer `text/plain` export (cheap),
+but if they want to *edit* it, switch to the Docs API.
+
 ```javascript
-// Doc → PDF
+// Doc → PDF (deliverable)
 const pdf = await gateway.drive.filesExport({
   fileId: "doc-id",
   mimeType: "application/pdf",
 });
 
-// Doc → plain text (cheap; great for letting the LLM read the body)
+// Doc → plain text (for reading the body in-script — small docs only)
 const txt = await gateway.drive.filesExport({
   fileId: "doc-id",
   mimeType: "text/plain",
 });
 
-// Sheet → CSV (only the first sheet/tab; for all tabs export to XLSX)
-const csv = await gateway.drive.filesExport({
-  fileId: "sheet-id",
-  mimeType: "text/csv",
-});
-
-// Sheet → XLSX
+// Sheet → XLSX (deliverable; multi-tab unlike CSV which is first tab only)
 const xlsx = await gateway.drive.filesExport({
   fileId: "sheet-id",
   mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 });
 
-// Slides → PDF
+// Slides → PDF (deliverable)
 const slidesPdf = await gateway.drive.filesExport({
   fileId: "slides-id",
   mimeType: "application/pdf",
