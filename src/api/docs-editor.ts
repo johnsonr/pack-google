@@ -32,6 +32,14 @@ import type {
 
 // --- Read methods -----------------------------------------------------
 
+/**
+ * Return the heading outline of a Google Doc — a flat list of spans
+ * with level, heading text, and stable anchors. PREFER this over
+ * pulling the whole document via `docs.documentsGet` when you only
+ * need to reason about structure; it returns far less data and gives
+ * you anchors you can pass to `readSection`, `proposeEdits`, and
+ * other docsEditor methods.
+ */
 export async function getOutline(
   ctx: GatewayContext,
   args: { documentId: string },
@@ -46,6 +54,11 @@ export interface SectionContent {
   revisionId: string;
 }
 
+/**
+ * Return the text under one heading until the next heading. Use the
+ * anchor returned by `getOutline`. Lets you read one section of a long
+ * document without pulling the entire body into the LLM context.
+ */
 export async function readSection(
   ctx: GatewayContext,
   args: { documentId: string; anchor: AnchorId },
@@ -68,6 +81,13 @@ export interface FindMatch {
   context: string;
 }
 
+/**
+ * Find every occurrence of `query` in the document body and return
+ * the match positions along with their enclosing heading anchor.
+ * Case-insensitive substring match. PREFER this over scanning the
+ * raw document text yourself — it returns just the matches and
+ * gives you anchors you can use with the editing methods below.
+ */
 export async function findInDocument(
   ctx: GatewayContext,
   args: { documentId: string; query: string; maxResults?: number },
@@ -117,6 +137,13 @@ export async function findInDocument(
 
 // --- Edit methods -----------------------------------------------------
 
+/**
+ * Validate a list of EditOps against the current document and return
+ * a stamped EditPlan. Does NOT mutate. Step 1 of the two-step
+ * propose/apply edit flow — use this together with `applyEdits` to
+ * make user-reviewable edits. NEVER use `docs.documentsBatchUpdate`
+ * directly; it bypasses validation and the revisionId guard.
+ */
 export async function proposeEdits(
   ctx: GatewayContext,
   args: { documentId: string; edits: EditOp[] },
@@ -135,6 +162,13 @@ export async function proposeEdits(
   };
 }
 
+/**
+ * Apply the accepted ops from an EditPlan as a single guarded
+ * batchUpdate. Step 2 of the propose/apply edit flow. Sends
+ * `requiredRevisionId` so the write fails cleanly if the document
+ * moved since `proposeEdits` was called — caller should then
+ * re-propose against the current state.
+ */
 export async function applyEdits(
   ctx: GatewayContext,
   args: {
