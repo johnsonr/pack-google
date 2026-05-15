@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "declaration": false,
+    "noEmit": false,
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "esModuleInterop": true,
+    "verbatimModuleSyntax": false
+  },
+  "include": ["src/**/*.ts", ".embabel/**/*.d.ts"]
+}
