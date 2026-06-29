@@ -1,0 +1,41 @@
+# Google Drive virtual node — on-demand KG virtualization of the connected user's Drive,
+# mirroring the GitHub issue/PR pattern (specs/VIRTUAL_CYPHER.md). A file materializes only
+# when a query traverses to it from the current user, transiently, then rolls back — nothing
+# is persisted.
+#
+# Reach it ONLY from (me:AssistantUser)-[:HAS_DRIVE_FILE]->(f:GoogleDriveFile). The anchor is
+# the AssistantUser (NOT an arbitrary Person): Drive's files.list returns only the
+# AUTHENTICATED user's own + shared-with-them files, so "my Drive" is the only meaningful
+# anchor. Anchoring on AssistantUser also makes the join unreachable from (p:Person), which
+# would otherwise imply we could list someone else's Drive.
+#
+#   MATCH (me:AssistantUser)-[:HAS_DRIVE_FILE]->(f:GoogleDriveFile)
+#   WHERE f.mimeType = 'application/vnd.google-apps.spreadsheet'
+#   RETURN count(f)                       # "how many Google Sheets do I have"
+- name: GoogleDriveFile
+  visibility: internal
+  userAnchor: false
+  description: >-
+    A file in the connected user's Google Drive (Sheets, Docs, Slides, PDFs, folders, …),
+    fetched on demand. Reach ONLY via (me:AssistantUser)-[:HAS_DRIVE_FILE]->(f:GoogleDriveFile).
+    Filter by mimeType: a Google Sheet = 'application/vnd.google-apps.spreadsheet',
+    a Doc = 'application/vnd.google-apps.document',
+    Slides = 'application/vnd.google-apps.presentation',
+    a folder = 'application/vnd.google-apps.folder'.
+  virtualJoins:
+    - anchorLabel: AssistantUser
+      relationship: HAS_DRIVE_FILE
+      keyField: id                 # AssistantUser.id — pins the fetch to the current user
+      recordKeyField: ownerUserId  # echoed onto every file record by the producer (see below)
+      producer: driveFiles
+      description: 'the current user''s Google Drive files ("my sheets / docs / files"); anchor on (me:AssistantUser)'
+  properties:
+    id:
+      description: "Google Drive file id — identity."
+      metadata:
+        identity: "true"
+    name: "File name / title."
+    mimeType: "Google MIME type. Sheet='application/vnd.google-apps.spreadsheet', Doc='application/vnd.google-apps.document', Slides='application/vnd.google-apps.presentation', folder='application/vnd.google-apps.folder'."
+    webViewLink: "URL to open the file in a browser."
+    modifiedTime: "ISO-8601 last-modified timestamp."
+    createdTime: "ISO-8601 creation timestamp."

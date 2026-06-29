@@ -1,0 +1,39 @@
+# Virtual-join producers for the Google pack (see specs/VIRTUAL_CYPHER.md). A RemoteRepository
+# is a keyed reader over an external store, in the Spring Data sense.
+
+# driveFiles — the connected user's Google Drive files, for the GoogleDriveFile virtual node.
+#
+# LIST-FOR-ME, NOT per-key: files.list returns the AUTHENTICATED user's files (the OAuth token
+# identifies the user). The anchor key (AssistantUser.id) is therefore NOT injected into the
+# call — there is no keyArg/keyTemplate/keyArgs. Instead `echoKeyAs: ownerUserId` stamps the
+# current-user id onto every returned record, so all files (including ones shared WITH the user,
+# which the user doesn't own) map back to the single (me:AssistantUser) anchor via the join's
+# recordKeyField: ownerUserId. One paged call covers the one anchor (batch: true).
+#
+# mimeType filtering ("how many Sheets") is applied graph-side after materialization — the query
+# filters f.mimeType. (A source-side pushdown into Drive's `q` is a possible later optimization;
+# Drive's `q` grammar joins clauses with ` and `, which needs care, so v1 keeps it graph-side.)
+- name: driveFiles
+  kind: remote
+  operation: files/list            # GET /files
+  records: "$.files[*]"
+  args:
+    q: "trashed = false"
+    fields: "files(id,name,mimeType,webViewLink,modifiedTime,createdTime),nextPageToken"
+    orderBy: "modifiedTime desc"
+    spaces: drive
+  echoKeyAs: ownerUserId           # stamp the anchor (current-user id) onto each file record
+  paging:
+    style: cursor
+    cursorParam: pageToken
+    cursorPath: "$.nextPageToken"
+    sizeParam: pageSize
+    size: 1000
+    maxPages: 10
+  cost:
+    bucket: google
+    rate: 100/100s
+    batch: true                    # one list-all call serves the single current-user anchor
+  cache:
+    kind: ttl
+    seconds: 300
