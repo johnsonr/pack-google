@@ -25,7 +25,7 @@
   records: "$.files[*]"
   args:
     q: "trashed = false{filters}"
-    fields: "files(id,name,mimeType,webViewLink,modifiedTime,createdTime),nextPageToken"
+    fields: "files(id,name,mimeType,webViewLink,modifiedTime,createdTime,sharedWithMe),nextPageToken"
     orderBy: "modifiedTime desc"
     spaces: drive
   echoKeyAs: ownerUserId           # stamp the anchor (current-user id) onto each file record
@@ -37,6 +37,27 @@
     - property: mimeType           # f.mimeType = '…'     →  Drive  mimeType = '…'
       op: EQUALS
       qualifier: " and mimeType = '{value}'"
+    - property: sharedWithMe       # f.sharedWithMe = true  →  Drive  sharedWithMe = true  ("shared with me")
+      op: EQUALS
+      qualifier: " and sharedWithMe = {value}"
+    - property: modifiedTime       # date window → Drive modifiedTime range (compare to ISO string literal)
+      op: GREATER_THAN
+      qualifier: " and modifiedTime > '{value}'"
+    - property: modifiedTime
+      op: GREATER_THAN_OR_EQUAL
+      qualifier: " and modifiedTime >= '{value}'"
+    - property: modifiedTime
+      op: LESS_THAN
+      qualifier: " and modifiedTime < '{value}'"
+    - property: modifiedTime
+      op: LESS_THAN_OR_EQUAL
+      qualifier: " and modifiedTime <= '{value}'"
+    - property: createdTime
+      op: GREATER_THAN
+      qualifier: " and createdTime > '{value}'"
+    - property: createdTime
+      op: LESS_THAN
+      qualifier: " and createdTime < '{value}'"
   paging:
     style: cursor
     cursorParam: pageToken
