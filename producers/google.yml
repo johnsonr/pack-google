@@ -25,7 +25,10 @@
   records: "$.files[*]"
   args:
     q: "trashed = false{filters}"
-    fields: "files(id,name,mimeType,webViewLink,modifiedTime,createdTime,sharedWithMe),nextPageToken"
+    # NOTE: `ownedByMe` is the real Drive File boolean field. `sharedWithMe` is a Drive *query term*
+    # (valid in q) but NOT a selectable field — requesting it in `fields` 400s. So we materialise
+    # `ownedByMe` and express "shared with me" as `ownedByMe = false` graph-side.
+    fields: "files(id,name,mimeType,webViewLink,modifiedTime,createdTime,ownedByMe),nextPageToken"
     orderBy: "modifiedTime desc"
     spaces: drive
   echoKeyAs: ownerUserId           # stamp the anchor (current-user id) onto each file record
@@ -37,9 +40,10 @@
     - property: mimeType           # f.mimeType = '…'     →  Drive  mimeType = '…'
       op: EQUALS
       qualifier: " and mimeType = '{value}'"
-    - property: sharedWithMe       # f.sharedWithMe = true  →  Drive  sharedWithMe = true  ("shared with me")
-      op: EQUALS
-      qualifier: " and sharedWithMe = {value}"
+    # "shared with me" filters f.ownedByMe = false GRAPH-SIDE (ownedByMe is materialised); the fetch is
+    # bounded by the OTHER pushed filters (type / date / name). No source pushdown for it: the q term is
+    # `sharedWithMe` but the boolean we can read back is `ownedByMe`, and a value-inverting push isn't
+    # expressible — graph-side on the materialised field is correct and the fetch is already scoped.
     - property: modifiedTime       # date window → Drive modifiedTime range (compare to ISO string literal)
       op: GREATER_THAN
       qualifier: " and modifiedTime > '{value}'"

@@ -31,9 +31,10 @@
       description: >-
         the current user's Google Drive files ("my sheets / docs / files"); anchor on
         (me:AssistantUser). ALWAYS narrow with a filter the source can push: name CONTAINS,
-        mimeType =, sharedWithMe = true, and modifiedTime/createdTime compared to an ISO-8601
-        STRING LITERAL (e.g. f.modifiedTime > '2026-06-15T00:00:00' for "last 2 weeks" — use a
-        literal date, NOT datetime() arithmetic, so it pushes to the source).
+        mimeType =, and modifiedTime/createdTime compared to an ISO-8601 STRING LITERAL (e.g.
+        f.modifiedTime > '2026-06-15T00:00:00' for "last 2 weeks" — a literal date, NOT datetime()
+        arithmetic, so it pushes to the source). For "shared with me" add f.ownedByMe = false; for
+        "my own / files I own" use f.ownedByMe = true.
   properties:
     id:
       description: "Google Drive file id — identity."
@@ -44,4 +45,4 @@
     webViewLink: "URL to open the file in a browser."
     modifiedTime: "ISO-8601 last-modified. For a date window compare to a STRING LITERAL, e.g. modifiedTime > '2026-06-15T00:00:00'."
     createdTime: "ISO-8601 creation timestamp (compare to a string literal)."
-    sharedWithMe: "Boolean — true if the file was shared WITH the user (not owned by them). Filter `f.sharedWithMe = true` for 'shared with me'."
+    ownedByMe: "Boolean — true if the user OWNS the file, false if it was SHARED WITH them. Filter `f.ownedByMe = false` for 'shared with me', `f.ownedByMe = true` for 'my own'."
