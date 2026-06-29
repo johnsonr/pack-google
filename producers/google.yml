@@ -8,21 +8,35 @@
 # call — there is no keyArg/keyTemplate/keyArgs. Instead `echoKeyAs: ownerUserId` stamps the
 # current-user id onto every returned record, so all files (including ones shared WITH the user,
 # which the user doesn't own) map back to the single (me:AssistantUser) anchor via the join's
-# recordKeyField: ownerUserId. One paged call covers the one anchor (batch: true).
+# recordKeyField: ownerUserId.
 #
-# mimeType filtering ("how many Sheets") is applied graph-side after materialization — the query
-# filters f.mimeType. (A source-side pushdown into Drive's `q` is a possible later optimization;
-# Drive's `q` grammar joins clauses with ` and `, which needs care, so v1 keeps it graph-side.)
+# NEVER FETCH ALL. A real Drive can hold tens of thousands of files; enumerating them is never the
+# right answer (and the page cap would silently truncate it). So:
+#   - PUSHDOWN scopes the fetch AT THE SOURCE: `name CONTAINS 'x'` becomes Drive's `name contains
+#     'x'`, `mimeType = '…'` becomes `mimeType = '…'`, substituted into `q` via `{filters}`. Drive
+#     joins clauses with ` and `, so each qualifier carries its own leading " and " to compose onto
+#     the base `trashed = false`. Most-specific filter first → few records, fast, never near the cap.
+#   - requiresFilter: true means a query with NO pushable predicate (e.g. "all my files") is NOT
+#     run — the engine returns an honest NEEDS_FILTER note ("narrow it"), not a truncated guess.
+# Whatever isn't pushed (a 2nd name token, case-folding) still filters graph-side after materialize.
 - name: driveFiles
   kind: remote
   operation: files/list            # GET /files
   records: "$.files[*]"
   args:
-    q: "trashed = false"
+    q: "trashed = false{filters}"
     fields: "files(id,name,mimeType,webViewLink,modifiedTime,createdTime),nextPageToken"
     orderBy: "modifiedTime desc"
     spaces: drive
   echoKeyAs: ownerUserId           # stamp the anchor (current-user id) onto each file record
+  requiresFilter: true             # never enumerate the whole Drive — demand a pushable predicate
+  pushdown:
+    - property: name               # f.name CONTAINS 'x'  →  Drive  name contains 'x'  (case-insensitive)
+      op: CONTAINS
+      qualifier: " and name contains '{value}'"
+    - property: mimeType           # f.mimeType = '…'     →  Drive  mimeType = '…'
+      op: EQUALS
+      qualifier: " and mimeType = '{value}'"
   paging:
     style: cursor
     cursorParam: pageToken
@@ -33,7 +47,7 @@
   cost:
     bucket: google
     rate: 100/100s
-    batch: true                    # one list-all call serves the single current-user anchor
+    batch: true                    # one scoped list call serves the single current-user anchor
   cache:
     kind: ttl
     seconds: 300
