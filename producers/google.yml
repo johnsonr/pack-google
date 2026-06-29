@@ -76,3 +76,57 @@
   cache:
     kind: ttl
     seconds: 300
+
+# driveFilesByOwner — files OWNED BY A NAMED PERSON that are visible to the connected user
+# (i.e. "shared with me by <person>"), for the (p:Person)-[:OWNS_DRIVE_FILE]->(f:GoogleDriveFile) join.
+#
+# The OWNER'S EMAIL scopes the source: each anchor Person's email is rendered into Drive's `q` as
+# `'<email>' in owners` via keyTemplate. files.list still runs with the CONNECTED user's token, so it
+# returns only that owner's files the user can actually see — exactly "shared with me by them". The key
+# DOES scope the source, so no requiresFilter is needed (the owner clause bounds the fetch). echoKeyAs
+# stamps the queried owner email back onto each record (and forces one-email-per-call), so files map to
+# the right Person anchor via recordKeyField: ownerEmail. mimeType / name / date still push via {filters}.
+- name: driveFilesByOwner
+  kind: remote
+  operation: files/list
+  records: "$.files[*]"
+  args:
+    q: "trashed = false and {keys}{filters}"
+    fields: "files(id,name,mimeType,webViewLink,modifiedTime,createdTime,ownedByMe),nextPageToken"
+    orderBy: "modifiedTime desc"
+    spaces: drive
+  keyTemplate: "'{key}' in owners"   # owner email → Drive owner filter (scopes the source)
+  echoKeyAs: ownerEmail              # stamp the queried owner email onto each record (one email per call)
+  pushdown:
+    - property: name
+      op: CONTAINS
+      qualifier: " and name contains '{value}'"
+    - property: mimeType
+      op: EQUALS
+      qualifier: " and mimeType = '{value}'"
+    - property: modifiedTime
+      op: GREATER_THAN
+      qualifier: " and modifiedTime > '{value}'"
+    - property: modifiedTime
+      op: LESS_THAN
+      qualifier: " and modifiedTime < '{value}'"
+    - property: createdTime
+      op: GREATER_THAN
+      qualifier: " and createdTime > '{value}'"
+    - property: createdTime
+      op: LESS_THAN
+      qualifier: " and createdTime < '{value}'"
+  paging:
+    style: cursor
+    cursorParam: pageToken
+    cursorPath: "$.nextPageToken"
+    sizeParam: pageSize
+    size: 1000
+    maxPages: 10
+  cost:
+    bucket: google
+    rate: 100/100s
+    batch: false                   # one owner email per call (echoKeyAs)
+  cache:
+    kind: ttl
+    seconds: 300

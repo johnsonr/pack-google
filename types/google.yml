@@ -35,6 +35,19 @@
         f.modifiedTime > '2026-06-15T00:00:00' for "last 2 weeks" — a literal date, NOT datetime()
         arithmetic, so it pushes to the source). For "shared with me" add f.ownedByMe = false; for
         "my own / files I own" use f.ownedByMe = true.
+    # Files OWNED BY A NAMED PERSON that are visible to you = "shared with me BY <person>". Anchor on a
+    # (p:Person) narrowed by name, and the person's email scopes the source (`'<email>' in owners`):
+    #   MATCH (p:Person)-[:OWNS_DRIVE_FILE]->(f:GoogleDriveFile)
+    #   WHERE toLower(p.name) CONTAINS 'sushila' AND f.mimeType = 'application/vnd.google-apps.document'
+    - anchorLabel: Person
+      relationship: OWNS_DRIVE_FILE
+      keyField: primaryEmail       # the owner Person's email — rendered into Drive `'<email>' in owners`
+      recordKeyField: ownerEmail   # echoed by the producer, maps each file back to its owner Person
+      producer: driveFilesByOwner
+      description: >-
+        files OWNED BY this person that are visible to you — i.e. "shared with me BY <person>".
+        Anchor on a (p:Person) narrowed by name (toLower(p.name) CONTAINS '…'); combine with a
+        mimeType / date / name filter on the file as usual.
   properties:
     id:
       description: "Google Drive file id — identity."
@@ -46,3 +59,4 @@
     modifiedTime: "ISO-8601 last-modified. For a date window compare to a STRING LITERAL, e.g. modifiedTime > '2026-06-15T00:00:00'."
     createdTime: "ISO-8601 creation timestamp (compare to a string literal)."
     ownedByMe: "Boolean — true if the user OWNS the file, false if it was SHARED WITH them. Filter `f.ownedByMe = false` for 'shared with me', `f.ownedByMe = true` for 'my own'."
+    ownerEmail: "Email of the owning person, when reached via (Person)-[:OWNS_DRIVE_FILE]->(file)."
