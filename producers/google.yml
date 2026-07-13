@@ -28,10 +28,13 @@
     # NOTE: `ownedByMe` is the real Drive File boolean field. `sharedWithMe` is a Drive *query term*
     # (valid in q) but NOT a selectable field — requesting it in `fields` 400s. So we materialise
     # `ownedByMe` and express "shared with me" as `ownedByMe = false` graph-side.
-    fields: "files(id,name,mimeType,webViewLink,modifiedTime,createdTime,ownedByMe),nextPageToken"
+    fields: "files(id,name,mimeType,webViewLink,modifiedTime,createdTime,ownedByMe,owners(emailAddress,displayName)),nextPageToken"
     orderBy: "modifiedTime desc"
     spaces: drive
   echoKeyAs: ownerUserId           # stamp the anchor (current-user id) onto each file record
+  project:                         # Drive `owners` is an array; lift the owner scalar so "who shared the
+    sharedByEmail: owners.0.emailAddress   # most with me" GROUPs by owner from the ONE list call (no per-person fan-out)
+    sharedByName: owners.0.displayName
   requiresFilter: true             # never enumerate the whole Drive — demand a pushable predicate
   pushdown:
     - property: name               # f.name CONTAINS 'x'  →  Drive  name contains 'x'  (case-insensitive)
@@ -130,3 +133,21 @@
   cache:
     kind: ttl
     seconds: 300
+
+# driveContentKeyword — LEXICAL content relevance over LIVE Drive (kind: remote-search, spec
+# EXTERNAL_DOCUMENTS.md lane 1). Backs Concept -[:RELEVANT_TO {via:'keyword'}]-> GoogleDriveFile:
+# per anchor Concept the engine substitutes the free text into `{query}` (quotes escaped) and runs
+# Drive's own fullText search — a live keyword search, nothing ingested. k bounds hits per anchor;
+# per-match r.mode='keyword' / r.rank land on the edge. Content SEMANTICS (vector/agentic) need the
+# file INGESTED (drive_ingest) — this join is the honest lexical "mentions" over the live store.
+- name: driveContentKeyword
+  kind: remote-search
+  operation: files/list
+  args:
+    q: "trashed = false and fullText contains '{query}'"
+    fields: "files(id,name,mimeType,webViewLink,modifiedTime,createdTime,ownedByMe),nextPageToken"
+    orderBy: "modifiedTime desc"
+    spaces: drive
+    pageSize: 25
+  records: "$.files[*]"
+  k: 8

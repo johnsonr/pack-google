@@ -34,11 +34,14 @@
         mimeType =, and modifiedTime/createdTime compared to an ISO-8601 STRING LITERAL (e.g.
         f.modifiedTime > '2026-06-15T00:00:00' for "last 2 weeks" — a literal date, NOT datetime()
         arithmetic, so it pushes to the source). For "shared with me" add f.ownedByMe = false; for
-        "my own / files I own" use f.ownedByMe = true.
+        "my own / files I own" use f.ownedByMe = true. For "WHO shared the MOST <files> with me"
+        stay on THIS anchor (me:AssistantUser), filter f.ownedByMe = false, then
+        WITH f.sharedByName AS person, count(f) AS n RETURN person, n ORDER BY n DESC — one list call,
+        grouped graph-side; do NOT iterate (p:Person)-[:OWNS_DRIVE_FILE] per person.
     # Files OWNED BY A NAMED PERSON that are visible to you = "shared with me BY <person>". Anchor on a
     # (p:Person) narrowed by name, and the person's email scopes the source (`'<email>' in owners`):
     #   MATCH (p:Person)-[:OWNS_DRIVE_FILE]->(f:GoogleDriveFile)
-    #   WHERE toLower(p.name) CONTAINS 'sushila' AND f.mimeType = 'application/vnd.google-apps.document'
+    #   WHERE toLower(p.name) CONTAINS '<name>' AND f.mimeType = 'application/vnd.google-apps.document'
     - anchorLabel: Person
       relationship: OWNS_DRIVE_FILE
       keyField: primaryEmail       # the owner Person's email — rendered into Drive `'<email>' in owners`
@@ -48,6 +51,22 @@
         files OWNED BY this person that are visible to you — i.e. "shared with me BY <person>".
         Anchor on a (p:Person) narrowed by name (toLower(p.name) CONTAINS '…'); combine with a
         mimeType / date / name filter on the file as usual.
+    # CONTENT relevance over LIVE Drive — files whose CONTENT mentions a free-text term (Drive's own
+    # fullText search; nothing ingested/copied). Anchor a query-literal Concept and pin via:'keyword':
+    #   MATCH (:Concept {value:'budget'})-[:RELEVANT_TO {via:'keyword'}]->(f:GoogleDriveFile)
+    #   RETURN f.name, f.webViewLink
+    - anchorLabel: Concept
+      relationship: RELEVANT_TO
+      via: keyword
+      keyField: value
+      recordKeyField: matchedFor
+      producer: driveContentKeyword
+      description: >-
+        LEXICAL content relevance over LIVE Drive — files whose CONTENT mentions the free-text term
+        (Drive fullText, live search, nothing stored). Seed a (:Concept {value:'…'}) and pin
+        via:'keyword' on the edge. Name/date/type filters go on f as usual. Per-match data is on the
+        EDGE: r.mode='keyword', r.rank (Drive's own order). For deep questions ABOUT a file's content,
+        ingest it (drive_ingest) and use the Document RELEVANT_TO paths instead.
   properties:
     id:
       description: "Google Drive file id — identity."
@@ -60,3 +79,27 @@
     createdTime: "ISO-8601 creation timestamp (compare to a string literal)."
     ownedByMe: "Boolean — true if the user OWNS the file, false if it was SHARED WITH them. Filter `f.ownedByMe = false` for 'shared with me', `f.ownedByMe = true` for 'my own'."
     ownerEmail: "Email of the owning person, when reached via (Person)-[:OWNS_DRIVE_FILE]->(file)."
+    sharedByEmail: "Email of the person who OWNS/shared this file (present on the (me:AssistantUser)-[:HAS_DRIVE_FILE] path). For 'who shared the MOST <files> with me' filter f.ownedByMe = false then GROUP BY f.sharedByName / f.sharedByEmail and ORDER BY count(f) DESC — one list call, NO per-person iteration."
+    sharedByName: "Display name of the person who owns/shared this file. GROUP BY this for 'who shared the most with me'."
+  # FEW-SHOT for the text-to-cypher generator (lens path). Phrased to teach the PATTERN/CLASS, NOT to
+  # mirror any specific question — neutral synthetic topics, no real names/files/folders.
+  examples:
+    # POSITIVE — ai_relevant is a per-row LLM FILTER over the FETCHED files: after the pushable predicate
+    # (mimeType) bounds the fetch, keep only files a subjective test judges on target — a discriminator no
+    # mimeType/name/date captures. Composes with real predicates via AND. `ai_` is a reserved query
+    # primitive, never a stored file property.
+    - q: "my Google Docs that are genuinely about the quarterly board deck, not just anything that mentions the quarter"
+      cypher: |
+        MATCH (me:AssistantUser)-[:HAS_DRIVE_FILE]->(f:GoogleDriveFile)
+        WHERE f.mimeType = 'application/vnd.google-apps.document'
+          AND f.ai_relevant = 'genuinely about the quarterly board deck, not merely mentioning the quarter in passing'
+        RETURN f.name, f.webViewLink ORDER BY f.modifiedTime DESC LIMIT 50
+    # POSITIVE — ai_score(f, '<criterion>') is a per-row LLM RERANK over the fetched files; pair it with
+    # LIMIT k for top-k by fit when no scalar (modifiedTime, name) captures "how relevant". The name
+    # CONTAINS predicate still bounds the fetch (requiresFilter), then the LLM reranks what came back.
+    - q: "the handful of my Drive files most relevant to the website redesign"
+      cypher: |
+        MATCH (me:AssistantUser)-[:HAS_DRIVE_FILE]->(f:GoogleDriveFile)
+        WHERE f.name CONTAINS 'design'
+        RETURN f.name, f.webViewLink
+        ORDER BY ai_score(f, 'relevance to the ongoing website redesign project') DESC LIMIT 5
