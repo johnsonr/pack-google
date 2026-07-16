@@ -1,6 +1,6 @@
 ---
 name: google-sheets-workflows
-description: Google Sheets workflows — reading and writing ranges in A1 notation, appending rows, batching reads/writes, evaluating formulas, and modifying spreadsheet structure (adding sheets, formatting, conditional formatting) via `spreadsheets.batchUpdate`. Activate this skill BEFORE making any Sheets call when the user asks anything involving spreadsheets, cells, ranges, rows, columns, formulas, charts, or anything in Google Sheets.
+description: Google Sheets — read/write ranges, append rows, formulas, structure and formatting. Activate BEFORE any Sheets call; it returns the namespace and rules to follow.
 ---
 
 # Google Sheets Workflows

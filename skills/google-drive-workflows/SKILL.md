@@ -1,6 +1,6 @@
 ---
 name: google-drive-workflows
-description: Google Drive workflows — finding files via the search query language (q parameter), reading and writing file metadata and content, exporting Google-native files (Docs/Sheets/Slides) to PDF/DOCX/XLSX/CSV, copying, and sharing via permissions. Activate this skill BEFORE making any Drive call when the user asks about finding, listing, sharing, copying, downloading, or exporting Google Drive files.
+description: Google Drive — find, read, export, copy, and share files. Activate BEFORE any Drive call; it returns the namespace and rules to follow.
 ---
 
 # Google Drive Workflows

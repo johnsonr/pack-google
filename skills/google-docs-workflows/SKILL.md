@@ -1,6 +1,6 @@
 ---
 name: google-docs-workflows
-description: Google Docs workflows — reading a document's structured content (paragraphs, runs, tables, headings) and editing via `documents.batchUpdate` requests (insertText, deleteContentRange, replaceAllText, updateParagraphStyle, updateTextStyle, insertTable, etc.). Activate this skill BEFORE making any Docs call when the user asks about reading, editing, or formatting Google Docs.
+description: Google Docs — read structured content and edit via batchUpdate. Activate BEFORE any Docs call; it returns the namespace and rules to follow.
 ---
 
 # Google Docs Workflows

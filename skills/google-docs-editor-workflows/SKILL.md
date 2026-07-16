@@ -1,12 +1,6 @@
 ---
 name: google-docs-editor-workflows
-description: >
-  Structured editing of Google Docs via the higher-level `docs_editor`
-  namespace: outline extraction, section reads, substring search, and a
-  proposed/reviewed/applied edit flow that guards against concurrent
-  writes. Activate this skill BEFORE any Google Docs read or edit so
-  the LLM picks the right surface instead of falling back to raw
-  `docs.documentsBatchUpdate`.
+description: Structured Google Docs editing via `docs_editor` — outline, section reads, substring search, and a proposed/reviewed/applied edit flow safe against concurrent edits. Activate BEFORE any docs_editor call; it returns the namespace and rules to follow.
 ---
 
 # Google Docs — structured editing via `gateway.docsEditor`
