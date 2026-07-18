@@ -18,7 +18,14 @@
   description: >-
     A file in the connected user's Google Drive (Sheets, Docs, Slides, PDFs, folders, …),
     fetched on demand. Reach ONLY via (me:AssistantUser)-[:HAS_DRIVE_FILE]->(f:GoogleDriveFile).
-    Filter by mimeType: a Google Sheet = 'application/vnd.google-apps.spreadsheet',
+    A row is METADATA — file CONTENT is NOT on this node, and extract()/summarize() over f.name
+    can never answer a content question. To answer FROM a document's content: find the doc via the
+    Concept keyword join (fullText), return f.name + f.webViewLink, and say the answer needs the
+    document opened — or ingest it (drive_ingest) and use the Document paths.
+    "My docs / documents / files" means ANY file type: real agreements, reports and decks are
+    usually UPLOADED .docx/.pdf, NOT Google-native — so NEVER default a mimeType filter onto a
+    document question (it silently excludes exactly those files). Filter by mimeType ONLY when the
+    user names a format: a Google Sheet = 'application/vnd.google-apps.spreadsheet',
     a Doc = 'application/vnd.google-apps.document',
     Slides = 'application/vnd.google-apps.presentation',
     a folder = 'application/vnd.google-apps.folder'.
@@ -37,7 +44,9 @@
         "my own / files I own" use f.ownedByMe = true. For "WHO shared the MOST <files> with me"
         stay on THIS anchor (me:AssistantUser), filter f.ownedByMe = false, then
         WITH f.sharedByName AS person, count(f) AS n RETURN person, n ORDER BY n DESC — one list call,
-        grouped graph-side; do NOT iterate (p:Person)-[:OWNS_DRIVE_FILE] per person.
+        grouped graph-side; do NOT iterate (p:Person)-[:OWNS_DRIVE_FILE] per person. NEVER wrap any
+        f.* property in summarize()/extract() — Drive rows carry METADATA only, so the digest is
+        garbage; return f.name + f.webViewLink and say the document must be opened or ingested.
     # Files OWNED BY A NAMED PERSON that are visible to you = "shared with me BY <person>". Anchor on a
     # (p:Person) narrowed by name, and the person's email scopes the source (`'<email>' in owners`):
     #   MATCH (p:Person)-[:OWNS_DRIVE_FILE]->(f:GoogleDriveFile)
@@ -50,7 +59,9 @@
       description: >-
         files OWNED BY this person that are visible to you — i.e. "shared with me BY <person>".
         Anchor on a (p:Person) narrowed by name (toLower(p.name) CONTAINS '…'); combine with a
-        mimeType / date / name filter on the file as usual.
+        mimeType / date / name filter on the file as usual. OWNERSHIP ONLY — never use this for a
+        person merely MENTIONED in documents ("docs about X", "what is X paid"): that is CONTENT
+        relevance, so seed (:Concept {value:'<person name>'})-[:RELEVANT_TO {via:'keyword'}]->(f).
     # Files DIRECTLY INSIDE a named Drive folder — a folder IS a GoogleDriveFile
     # (mimeType 'application/vnd.google-apps.folder'); its id scopes the source ('<id>' in parents):
     #   MATCH (me:AssistantUser)-[:HAS_DRIVE_FILE]->(d:GoogleDriveFile)
@@ -71,6 +82,24 @@
     # fullText search; nothing ingested/copied). Anchor a query-literal Concept and pin via:'keyword':
     #   MATCH (:Concept {value:'budget'})-[:RELEVANT_TO {via:'keyword'}]->(f:GoogleDriveFile)
     #   RETURN f.name, f.webViewLink
+    # CONCEPT relevance over LIVE Drive — "docs ABOUT <idea>" where the idea's exact words may
+    # never appear: the idea expands into literal probes (fullText per probe, union by id).
+    #   MATCH (:Concept {value:'equity compensation'})-[r:RELEVANT_TO {via:'agentic-rag'}]->(f:GoogleDriveFile)
+    #   RETURN f.name, f.webViewLink, r.probe
+    - anchorLabel: Concept
+      relationship: RELEVANT_TO
+      via: agentic-rag
+      keyField: value
+      recordKeyField: matchedFor
+      producer: driveContentAgentic
+      description: >-
+        CONCEPT relevance over LIVE Drive — files ABOUT an idea whose exact words may not appear
+        (the idea is expanded into literal probes; r.probe on the edge says which term hit). Seed a
+        (:Concept {value:'<idea>'}) and pin via:'agentic-rag'. NO mimeType filter unless the user
+        names a format — "docs" means ANY file type, and agreements/reports are usually uploaded
+        .docx/.pdf which a google-apps.document filter silently excludes. For a LITERAL term (a
+        person's name, an exact phrase) prefer via:'keyword'. Still lexical underneath: for deep
+        semantic questions ingest the file (drive_ingest) and use the Document paths.
     - anchorLabel: Concept
       relationship: RELEVANT_TO
       via: keyword
@@ -80,7 +109,11 @@
       description: >-
         LEXICAL content relevance over LIVE Drive — files whose CONTENT mentions the free-text term
         (Drive fullText, live search, nothing stored). Seed a (:Concept {value:'…'}) and pin
-        via:'keyword' on the edge. Name/date/type filters go on f as usual. Per-match data is on the
+        via:'keyword' on the edge. The MENTION is the filter: do NOT stack a name/title conjunct or a
+        default mimeType onto the seed (an agreement is usually an uploaded .docx/.pdf, and its name
+        rarely matches the topic word) — add name/type only when the user explicitly names them.
+        This is also where "my docs" questions land when nothing INGESTED matches — the live store
+        usually holds the file. Per-match data is on the
         EDGE: r.mode='keyword', r.rank (Drive's own order). For deep questions ABOUT a file's content,
         ingest it (drive_ingest) and use the Document RELEVANT_TO paths instead.
   properties:
@@ -117,6 +150,25 @@
     # POSITIVE — ai_score(f, '<criterion>') is a per-row LLM RERANK over the fetched files; pair it with
     # LIMIT k for top-k by fit when no scalar (modifiedTime, name) captures "how relevant". The name
     # CONTAINS predicate still bounds the fetch (requiresFilter), then the LLM reranks what came back.
+    # CONCEPT ask ("docs about <idea>") — the agentic edge, NO mimeType filter ("docs" = any type).
+    - q: "which of my drive docs are about supplier onboarding"
+      cypher: |
+        MATCH (:Concept {value:'supplier onboarding'})-[r:RELEVANT_TO {via:'agentic-rag'}]->(f:GoogleDriveFile)
+        RETURN f.name, f.webViewLink, r.probe
+    # A CONTENT question about a person ("what is X paid") is answered by FINDING the documents
+    # that mention them (Drive fullText via a Concept keyword seed) and returning name + link —
+    # never by extract()/summarize() over metadata, and never via OWNS_DRIVE_FILE (ownership).
+    # "SUMMARIZE <doc> from my drive": Drive nodes carry NO content/snippet property — any
+    # summarize()/extract() over f.* is null. Find the document, return name + link; the caller
+    # opens it or ingests it (drive_ingest) for a real summary.
+    - q: "summarize the consulting agreement with jordan quill from my drive"
+      cypher: |
+        MATCH (:Concept {value:'jordan quill'})-[:RELEVANT_TO {via:'keyword'}]->(f:GoogleDriveFile)
+        RETURN f.name, f.webViewLink
+    - q: "how much is nova quill paid per month, according to my drive docs"
+      cypher: |
+        MATCH (:Concept {value:'nova quill'})-[:RELEVANT_TO {via:'keyword'}]->(f:GoogleDriveFile)
+        RETURN f.name, f.webViewLink
     # Largest files: size pushes NOTHING (no Drive size filter) — bound the fetch with a real
     # predicate (type/date/name), then sort graph-side. Google-native files have no size.
     - q: "my three largest PDFs"

@@ -208,3 +208,24 @@
   cache:
     kind: ttl
     seconds: 300
+
+# driveContentAgentic — CONCEPT relevance over LIVE Drive (agentic probe expansion above the
+# lexical lane): "docs about equity compensation" finds the option grant deed even though the
+# concept's words appear nowhere. The concept is expanded into literal probes (option grant,
+# vesting, ESOP, …), Drive's fullText search runs once per probe, and hits union by id with the
+# winning probe as edge provenance (r.mode='agentic', r.probe). Fails open to plain fullText when
+# no expander is wired. Still LIVE and lexical underneath — for true semantic depth, ingest.
+- name: driveContentAgentic
+  kind: remote-search
+  agentic: true
+  intent: "files in the user's Google Drive that concern the given idea or topic"
+  maxProbes: 5
+  operation: files/list
+  args:
+    q: "trashed = false and fullText contains '{query}'"
+    fields: "files(id,name,mimeType,webViewLink,modifiedTime,createdTime,ownedByMe,size,parents),nextPageToken"
+    orderBy: "modifiedTime desc"
+    spaces: drive
+    pageSize: 25
+  records: "$.files[*]"
+  k: 8
