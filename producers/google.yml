@@ -28,7 +28,7 @@
     # NOTE: `ownedByMe` is the real Drive File boolean field. `sharedWithMe` is a Drive *query term*
     # (valid in q) but NOT a selectable field — requesting it in `fields` 400s. So we materialise
     # `ownedByMe` and express "shared with me" as `ownedByMe = false` graph-side.
-    fields: "files(id,name,mimeType,webViewLink,modifiedTime,createdTime,ownedByMe,owners(emailAddress,displayName)),nextPageToken"
+    fields: "files(id,name,mimeType,webViewLink,modifiedTime,createdTime,ownedByMe,size,parents,owners(emailAddress,displayName)),nextPageToken"
     orderBy: "modifiedTime desc"
     spaces: drive
   echoKeyAs: ownerUserId           # stamp the anchor (current-user id) onto each file record
@@ -63,8 +63,14 @@
       op: GREATER_THAN
       qualifier: " and createdTime > '{value}'"
     - property: createdTime
+      op: GREATER_THAN_OR_EQUAL
+      qualifier: " and createdTime >= '{value}'"
+    - property: createdTime
       op: LESS_THAN
       qualifier: " and createdTime < '{value}'"
+    - property: createdTime
+      op: LESS_THAN_OR_EQUAL
+      qualifier: " and createdTime <= '{value}'"
   paging:
     style: cursor
     cursorParam: pageToken
@@ -95,7 +101,7 @@
   records: "$.files[*]"
   args:
     q: "trashed = false and {keys}{filters}"
-    fields: "files(id,name,mimeType,webViewLink,modifiedTime,createdTime,ownedByMe),nextPageToken"
+    fields: "files(id,name,mimeType,webViewLink,modifiedTime,createdTime,ownedByMe,size,parents),nextPageToken"
     orderBy: "modifiedTime desc"
     spaces: drive
   keyTemplate: "'{key}' in owners"   # owner email → Drive owner filter (scopes the source)
@@ -117,8 +123,14 @@
       op: GREATER_THAN
       qualifier: " and createdTime > '{value}'"
     - property: createdTime
+      op: GREATER_THAN_OR_EQUAL
+      qualifier: " and createdTime >= '{value}'"
+    - property: createdTime
       op: LESS_THAN
       qualifier: " and createdTime < '{value}'"
+    - property: createdTime
+      op: LESS_THAN_OR_EQUAL
+      qualifier: " and createdTime <= '{value}'"
   paging:
     style: cursor
     cursorParam: pageToken
@@ -145,9 +157,54 @@
   operation: files/list
   args:
     q: "trashed = false and fullText contains '{query}'"
-    fields: "files(id,name,mimeType,webViewLink,modifiedTime,createdTime,ownedByMe),nextPageToken"
+    fields: "files(id,name,mimeType,webViewLink,modifiedTime,createdTime,ownedByMe,size,parents),nextPageToken"
     orderBy: "modifiedTime desc"
     spaces: drive
     pageSize: 25
   records: "$.files[*]"
   k: 8
+
+# driveFilesInFolder — files DIRECTLY INSIDE a Drive folder, for the self-referential
+# (folder:GoogleDriveFile)-[:CONTAINS_FILE]->(f:GoogleDriveFile) join. The FOLDER'S ID scopes the
+# source (`'<id>' in parents`); the folder anchor is itself materialized first (narrowed by name +
+# mimeType folder via driveFiles), so the fetch is per-folder, never Drive-wide. echoKeyAs stamps
+# the queried parent id back onto each record → recordKeyField: parentId links file to folder.
+# One level per call (Drive `in parents` is direct children); walk deeper by chaining the join.
+- name: driveFilesInFolder
+  kind: remote
+  operation: files/list
+  records: "$.files[*]"
+  args:
+    q: "trashed = false and {keys}{filters}"
+    fields: "files(id,name,mimeType,webViewLink,modifiedTime,createdTime,ownedByMe,size,parents),nextPageToken"
+    orderBy: "modifiedTime desc"
+    spaces: drive
+  keyTemplate: "'{key}' in parents"  # folder id → Drive parent filter (scopes the source)
+  echoKeyAs: parentId                # stamp the queried folder id onto each record
+  pushdown:
+    - property: name
+      op: CONTAINS
+      qualifier: " and name contains '{value}'"
+    - property: mimeType
+      op: EQUALS
+      qualifier: " and mimeType = '{value}'"
+    - property: modifiedTime
+      op: GREATER_THAN
+      qualifier: " and modifiedTime > '{value}'"
+    - property: modifiedTime
+      op: LESS_THAN
+      qualifier: " and modifiedTime < '{value}'"
+  paging:
+    style: cursor
+    cursorParam: pageToken
+    cursorPath: "$.nextPageToken"
+    sizeParam: pageSize
+    size: 1000
+    maxPages: 10
+  cost:
+    bucket: google
+    rate: 100/100s
+    batch: false                   # one folder id per call (echoKeyAs)
+  cache:
+    kind: ttl
+    seconds: 300
