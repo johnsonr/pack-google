@@ -1,22 +1,22 @@
-# pack-google
+# realm-google
 
 Google Workspace (Sheets, Drive, Docs) via vendored OpenAPI 3 specs —
 gives the LLM full request **and** response types for the
 batchUpdate-heavy parts of the surface where flat tool descriptions
 never get there.
 
-> Pack authoring reference: see
-> [`docs/pack-format.md`](https://github.com/embabel/assistant/blob/main/docs/pack-format.md)
-> in the assistant repo for the full pack format spec — vendored
+> Realm authoring reference: see
+> [`docs/realm-format.md`](https://github.com/embabel/assistant/blob/main/docs/realm-format.md)
+> in the assistant repo for the full realm format spec — vendored
 > OpenAPI specs, OAuth2, identity introspection, admin OAuth app
-> registry, and per-workspace overrides are all documented there.
+> registry, and per-world overrides are all documented there.
 
 ## Why
 
 Google's REST APIs are described by **Discovery Documents**, not
 OpenAPI. The community-maintained APIs Guru repository converts the
 discovery docs to OpenAPI 3 and publishes them at stable URLs. Those
-JSON files are vendored into `apis/` so the pack is self-contained and
+JSON files are vendored into `apis/` so the realm is self-contained and
 doesn't fetch over the network at startup.
 
 The vendored specs have leading namespace prefixes stripped from
@@ -40,7 +40,7 @@ E.g.:
 - `gateway.drive.filesList({ q: "name contains 'invoice'" })`
 - `gateway.docs.documentsBatchUpdate({ documentId, body: { requests: [...] } })`
 
-If a call returns `gateway.X.foo is not a workspace tool`, the error
+If a call returns `gateway.X.foo is not a world tool`, the error
 lists every valid method — pick from it. Never re-send the same call.
 
 See `prompts/examples.md` for usage patterns and the three bundled
@@ -63,7 +63,7 @@ how "Sign in with Google" works on every website.
 The assistant's in-code Gmail/Calendar integration currently uses the
 legacy provider id `google`. Sharing the slot would let the two scope
 sets (Gmail+Calendar read-only vs. Sheets+Drive+Docs full) clobber
-each other in the CredentialStore. So this pack registers under
+each other in the CredentialStore. So this realm registers under
 `google-workspace`. Once the in-code Gmail/Calendar services migrate
 to read from this slot, the legacy `google` provider can be retired
 (one-time re-consent for existing users).
@@ -80,7 +80,7 @@ registered the Google Cloud app yet — show them the next section.
 
 ### For installation admins (one-time setup)
 
-Done once per installation. Every workspace in the installation
+Done once per installation. Every world in the installation
 inherits — end users just click Authorize.
 
 **You can reuse the same Google Cloud OAuth client your assistant
@@ -107,7 +107,7 @@ don't yet have a Google Cloud OAuth client, create one first
    https://www.googleapis.com/auth/drive
    https://www.googleapis.com/auth/documents
    ```
-   For an Internal-only Workspace deployment, this is painless. For
+   For an Internal-only World deployment, this is painless. For
    External users, adding `drive` and `documents` (sensitive /
    restricted scopes) triggers Google's verification process — plan
    for the review timeline.
@@ -119,8 +119,8 @@ don't yet have a Google Cloud OAuth client, create one first
    dev).
 4. **Add a second `oauth-apps.yml` entry** pointing at the **same**
    client-id/secret as the existing Gmail/Calendar config — under
-   `{workspaceBase}/admin/oauth-apps.yml` (the same admin directory
-   that holds `pack-sources.yml`, `themes/`, `hints/`, etc.):
+   `{worldBase}/admin/oauth-apps.yml` (the same admin directory
+   that holds `realm-sources.yml`, `themes/`, `hints/`, etc.):
 
    ```yaml
    apps:
@@ -129,7 +129,7 @@ don't yet have a Google Cloud OAuth client, create one first
        client-secret: GOCSPX-...                                   # same value as assistant.google.client-secret
    ```
 
-   Hot-reloaded — no restart needed. Every workspace in the
+   Hot-reloaded — no restart needed. Every world in the
    installation will see "Authorize" appear in Settings.
 
    End users will see two Connected Services entries (the legacy
@@ -138,9 +138,9 @@ don't yet have a Google Cloud OAuth client, create one first
    Gmail/Calendar services migrate to read from `google-workspace`,
    the legacy entry retires and there's just one consent.
 
-A specific workspace can opt out of the installation default and
+A specific world can opt out of the installation default and
 point at its own Google Cloud app by writing the same shape to
-`<workspace>/config/oauth-apps.yml` — useful if one team needs a
+`<world>/config/oauth-apps.yml` — useful if one team needs a
 different brand on the consent screen.
 
 Token refresh is automatic. End users can disconnect from the same
@@ -151,7 +151,7 @@ Settings panel any time.
 Drop `documents` and replace `drive` with `drive.readonly` in
 `apis/apis.yml`'s `scopes:` block (same in all three entries) and in
 the Google Cloud OAuth consent screen. Removes write methods'
-authorization without changing the pack code.
+authorization without changing the realm code.
 
 ## What's covered
 
@@ -165,7 +165,7 @@ Total: ~20 operations. Comments, revisions, change-watching, shared
 drives, and developer metadata are out of scope for v1 — add them
 when a concrete workflow needs them.
 
-## What's NOT in this pack
+## What's NOT in this realm
 
 - **Gmail / Calendar** — handled in-code by the assistant repo's
   `integration/google/` services (signal contributors depend on the
@@ -175,5 +175,5 @@ when a concrete workflow needs them.
   drives)** — out of scope for v1.
 - **Sheets `developerMetadata`, `getByDataFilter`** — niche,
   out of scope for v1.
-- **Slides, Forms, Apps Script, Admin SDK, Workspace Marketplace** —
-  separate APIs, separate packs.
+- **Slides, Forms, Apps Script, Admin SDK, World Marketplace** —
+  separate APIs, separate realms.

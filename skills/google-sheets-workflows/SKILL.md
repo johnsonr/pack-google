@@ -25,7 +25,7 @@ by underscores:
 | Append rows after the last data row | `spreadsheetsValuesAppend` |
 | Clear values (keep formatting) | `spreadsheetsValuesClear` |
 
-If a call returns `gateway.sheets.foo is not a workspace tool`, the
+If a call returns `gateway.sheets.foo is not a world tool`, the
 error lists every valid method — pick from it. Never re-send the
 same call.
 

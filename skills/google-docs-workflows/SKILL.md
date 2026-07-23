@@ -17,7 +17,7 @@ Calls go through `gateway.docs.<method>(args)` from inside
 | Read structured content | `documentsGet` |
 | Edit (insert, delete, format, replace, tables) | `documentsBatchUpdate` |
 
-If a call returns `gateway.docs.foo is not a workspace tool`, the
+If a call returns `gateway.docs.foo is not a world tool`, the
 error lists the three valid methods.
 
 ## Cardinal rule: it's all `documentsBatchUpdate`

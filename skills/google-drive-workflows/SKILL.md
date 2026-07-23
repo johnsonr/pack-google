@@ -21,7 +21,7 @@ Calls go through `gateway.drive.<method>(args)` from inside
 | List sharing on a file | `permissionsList` |
 | Add a sharer | `permissionsCreate` |
 
-If a call returns `gateway.drive.foo is not a workspace tool`, the
+If a call returns `gateway.drive.foo is not a world tool`, the
 error lists every valid method — pick from it. Never re-send the same
 call.
 
@@ -253,7 +253,7 @@ await gateway.drive.permissionsCreate({
 ```
 
 To **transfer ownership**, role=`owner` plus `transferOwnership: true`
-(only works inside the same Workspace domain).
+(only works inside the same World domain).
 
 ## Pitfalls
 
